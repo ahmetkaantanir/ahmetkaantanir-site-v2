@@ -69,6 +69,12 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll('.mobile-dock a').forEach((link) => {
+    link.addEventListener('click', () => {
+      els.navLinks.classList.remove('open');
+    });
+  });
+
   document.addEventListener('click', (event) => {
     if (!els.navLinks.classList.contains('open')) {
       return;
@@ -284,13 +290,13 @@ function renderAnomaly(anomaly) {
 
 function drawTrafficChart(data) {
   const canvas = els.trafficChart;
-  fitCanvasToContainer(canvas, 230);
+  const metrics = fitCanvasToContainer(canvas, 230);
   const ctx = canvas.getContext('2d');
   clearCanvas(canvas);
 
   const safeData = data.length ? data : new Array(24).fill(0);
-  const w = canvas.width;
-  const h = canvas.height;
+  const w = metrics.cssWidth;
+  const h = metrics.cssHeight;
   const max = Math.max(...safeData, 1);
 
   ctx.strokeStyle = '#1f3f5c';
@@ -320,7 +326,7 @@ function drawTrafficChart(data) {
 
 function drawIpChart(topIps) {
   const canvas = els.ipChart;
-  fitCanvasToContainer(canvas, 230);
+  const metrics = fitCanvasToContainer(canvas, 230);
   const ctx = canvas.getContext('2d');
   clearCanvas(canvas);
 
@@ -328,18 +334,19 @@ function drawIpChart(topIps) {
   const max = Math.max(...safe.map((x) => x.count), 1);
   const barW = 60;
   const gap = 26;
+  const h = metrics.cssHeight;
 
   safe.forEach((row, idx) => {
     const x = 24 + idx * (barW + gap);
     const barH = (row.count / max) * 140;
-    const y = canvas.height - 30 - barH;
+    const y = h - 30 - barH;
 
     ctx.fillStyle = '#ffb347';
     ctx.fillRect(x, y, barW, barH);
     ctx.fillStyle = '#c4d9f3';
     ctx.font = '11px monospace';
     ctx.fillText(String(row.count), x + 20, y - 6);
-    ctx.fillText(shortIp(row.ip), x, canvas.height - 12);
+    ctx.fillText(shortIp(row.ip), x, h - 12);
   });
 }
 
@@ -482,17 +489,19 @@ function clearCanvas(canvas) {
 
 function fitCanvasToContainer(canvas, preferredHeight) {
   if (!canvas) {
-    return;
+    return { cssWidth: 0, cssHeight: 0 };
   }
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  const width = Math.max(220, Math.floor(rect.width || canvas.clientWidth || 320));
-  const height = Math.max(160, preferredHeight);
-  canvas.width = Math.floor(width * dpr);
-  canvas.height = Math.floor(height * dpr);
-  canvas.style.height = `${height}px`;
+  const cssWidth = Math.max(220, Math.floor(rect.width || canvas.clientWidth || 320));
+  const fluidHeight = Math.round(cssWidth * 0.56);
+  const cssHeight = Math.max(170, Math.min(preferredHeight, fluidHeight));
+  canvas.width = Math.floor(cssWidth * dpr);
+  canvas.height = Math.floor(cssHeight * dpr);
+  canvas.style.height = `${cssHeight}px`;
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { cssWidth, cssHeight };
 }
 
 function bindResponsiveRedraw() {

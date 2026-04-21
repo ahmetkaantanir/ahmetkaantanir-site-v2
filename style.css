@@ -26,6 +26,10 @@ html {
   scroll-behavior: smooth;
 }
 
+section[id] {
+  scroll-margin-top: 84px;
+}
+
 body {
   font-family: 'Space Grotesk', sans-serif;
   background:
@@ -416,6 +420,10 @@ canvas {
   padding: 26px 0 36px;
 }
 
+.mobile-dock {
+  display: none;
+}
+
 .reveal {
   opacity: 0;
   transform: translateY(20px);
@@ -514,6 +522,10 @@ canvas {
     padding: 44px 0;
   }
 
+  body {
+    padding-bottom: 84px;
+  }
+
   .hero {
     padding-top: 40px;
   }
@@ -565,6 +577,18 @@ canvas {
     gap: 10px;
   }
 
+  .panel h3,
+  .card h3,
+  .kpi h3 {
+    margin-bottom: 6px;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
   .cards.four,
   .cards.three,
   .cards.two,
@@ -603,6 +627,38 @@ canvas {
   canvas {
     aspect-ratio: 1.7 / 1;
     min-height: 180px;
+  }
+
+  .mobile-dock {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(6, 16, 28, 0.92);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.42);
+  }
+
+  .mobile-dock a {
+    text-decoration: none;
+    color: #c2d9f3;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 10px 6px;
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .mobile-dock a:active {
+    background: rgba(0, 209, 183, 0.2);
   }
 
   .tool-grid,
@@ -650,6 +706,18 @@ canvas {
 
   .site-footer {
     padding: 18px 0 24px;
+  }
+
+  .mobile-dock {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    padding: 6px;
+  }
+
+  .mobile-dock a {
+    font-size: 0.78rem;
+    padding: 9px 4px;
   }
 }
 
