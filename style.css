@@ -30,6 +30,7 @@ body {
   color: var(--text);
   line-height: 1.72;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 .noise {
@@ -176,6 +177,10 @@ p {
   text-decoration: none;
   cursor: pointer;
   transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
 }
 
 .btn:hover {
@@ -378,27 +383,118 @@ canvas {
   .hero-stats {
     grid-template-columns: 1fr 1fr;
   }
+
+  main section {
+    padding: 60px 0;
+  }
+
+  .hero {
+    padding-top: 72px;
+  }
+
+  h1 {
+    max-width: 18ch;
+  }
 }
 
 @media (max-width: 760px) {
+  .shell {
+    width: calc(100vw - 24px);
+  }
+
+  .site-header {
+    backdrop-filter: blur(12px);
+  }
+
+  .nav {
+    min-height: 64px;
+    position: relative;
+  }
+
+  .brand {
+    font-size: 0.95rem;
+    max-width: 190px;
+  }
+
   .menu-toggle {
     display: inline-block;
+    font-size: 0.9rem;
+    min-height: 40px;
+    padding: 8px 11px;
   }
 
   .nav-links {
     display: none;
     position: absolute;
-    right: 4vw;
-    top: 62px;
+    right: 0;
+    left: 0;
+    top: calc(100% + 8px);
     flex-direction: column;
     background: rgba(7, 17, 29, 0.98);
     border: 1px solid var(--line);
     border-radius: 12px;
-    padding: 12px;
+    padding: 10px;
+    gap: 4px;
+    max-height: 75vh;
+    overflow-y: auto;
+  }
+
+  .nav-links a {
+    display: block;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.01);
   }
 
   .nav-links.open {
     display: flex;
+  }
+
+  main section {
+    padding: 52px 0;
+  }
+
+  .hero {
+    padding-top: 52px;
+  }
+
+  h1 {
+    max-width: 100%;
+    font-size: clamp(1.8rem, 9vw, 2.5rem);
+  }
+
+  .hero-sub {
+    font-size: 0.98rem;
+  }
+
+  .hero-cta,
+  .dataset-actions,
+  .tool-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-cta .btn,
+  .dataset-actions .btn,
+  .tool-actions .btn {
+    width: 100%;
+  }
+
+  .panel,
+  .card,
+  .kpi,
+  .hero-stats article {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  textarea,
+  input[type="file"] {
+    font-size: 16px;
+  }
+
+  canvas {
+    height: 210px;
   }
 
   .tool-grid,
@@ -406,5 +502,45 @@ canvas {
   .kpi-grid,
   .hero-stats {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .shell {
+    width: calc(100vw - 16px);
+  }
+
+  .brand {
+    font-size: 0.88rem;
+    max-width: 160px;
+  }
+
+  .eyebrow {
+    font-size: 0.7rem;
+    letter-spacing: 1.5px;
+  }
+
+  .section-head h2 {
+    font-size: 1.25rem;
+  }
+
+  .flow-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .flow-grid div {
+    font-size: 0.88rem;
+    padding: 12px;
+  }
+
+  .kpi h3,
+  .hero-stats h3 {
+    font-size: 1.4rem;
+  }
+
+  .card p,
+  .panel p,
+  .muted {
+    font-size: 0.93rem;
   }
 }
