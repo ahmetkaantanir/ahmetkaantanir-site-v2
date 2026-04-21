@@ -42,6 +42,7 @@ const els = {
 bindEvents();
 bootRevealAnimation();
 connectStream();
+bindResponsiveRedraw();
 
 function bindEvents() {
   if (els.menuToggle) {
@@ -49,6 +50,26 @@ function bindEvents() {
       els.navLinks.classList.toggle('open');
     });
   }
+
+  document.querySelectorAll('.nav-links a').forEach((link) => {
+    link.addEventListener('click', () => {
+      els.navLinks.classList.remove('open');
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!els.navLinks.classList.contains('open')) {
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    const insideNav = target.closest('.nav');
+    if (!insideNav) {
+      els.navLinks.classList.remove('open');
+    }
+  });
 
   document.querySelectorAll('[data-dataset]').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -251,6 +272,7 @@ function renderAnomaly(anomaly) {
 
 function drawTrafficChart(data) {
   const canvas = els.trafficChart;
+  fitCanvasToContainer(canvas, 230);
   const ctx = canvas.getContext('2d');
   clearCanvas(canvas);
 
@@ -286,6 +308,7 @@ function drawTrafficChart(data) {
 
 function drawIpChart(topIps) {
   const canvas = els.ipChart;
+  fitCanvasToContainer(canvas, 230);
   const ctx = canvas.getContext('2d');
   clearCanvas(canvas);
 
@@ -440,6 +463,44 @@ function clearCanvas(canvas) {
   }
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function fitCanvasToContainer(canvas, preferredHeight) {
+  if (!canvas) {
+    return;
+  }
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(220, Math.floor(rect.width || canvas.clientWidth || 320));
+  const height = Math.max(160, preferredHeight);
+  canvas.width = Math.floor(width * dpr);
+  canvas.height = Math.floor(height * dpr);
+  canvas.style.height = `${height}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function bindResponsiveRedraw() {
+  const redraw = debounce(() => {
+    if (!latestAnalysis) {
+      return;
+    }
+    drawTrafficChart(latestAnalysis.hourly_traffic || []);
+    drawIpChart(latestAnalysis.top_ips || []);
+  }, 140);
+
+  window.addEventListener('resize', redraw);
+  window.addEventListener('orientationchange', redraw);
+}
+
+function debounce(fn, delay) {
+  let timer = null;
+  return (...args) => {
+    if (timer) {
+      window.clearTimeout(timer);
+    }
+    timer = window.setTimeout(() => fn(...args), delay);
+  };
 }
 
 function info(message) {
