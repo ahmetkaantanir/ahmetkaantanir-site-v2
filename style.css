@@ -318,6 +318,41 @@ input[type="file"] {
   font-family: Consolas, 'Courier New', monospace;
 }
 
+.file-upload {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: rgba(5, 14, 24, 0.86);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.file-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.btn-file {
+  background: linear-gradient(120deg, #1dc9ff, #00d1b7);
+  color: #05211d;
+  border: none;
+  min-width: 120px;
+}
+
+.file-name {
+  color: var(--muted);
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 label {
   margin-top: 12px;
   display: inline-block;
@@ -552,6 +587,21 @@ canvas {
   input[type="file"] {
     font-size: 16px;
     padding: 12px;
+  }
+
+  .file-upload {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .btn-file {
+    width: 100%;
+  }
+
+  .file-name {
+    white-space: normal;
+    word-break: break-word;
   }
 
   canvas {

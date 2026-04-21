@@ -101,7 +101,11 @@
         <article class="panel">
           <h3>Log Toplama</h3>
           <p>.log, .txt ve .json formatları desteklenir. Maksimum dosya boyutu: 5 MB.</p>
-          <input id="logFile" type="file" accept=".log,.txt,.json">
+          <div class="file-upload" role="group" aria-label="Log dosyası yükleme">
+            <input id="logFile" class="file-native" type="file" accept=".log,.txt,.json">
+            <button id="pickFileBtn" type="button" class="btn btn-file">Dosya Seç</button>
+            <span id="fileName" class="file-name">Henüz dosya seçilmedi</span>
+          </div>
           <label for="apiInput">API Simülasyonu (JSON line)</label>
           <textarea id="apiInput" rows="7" placeholder='{"source":"api","message":"..."}'></textarea>
           <button id="appendApiData" class="btn">API Verisini Ekle</button>

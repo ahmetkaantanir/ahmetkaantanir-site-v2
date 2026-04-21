@@ -13,6 +13,8 @@ const els = {
   navLinks: document.getElementById('navLinks'),
   rawLogs: document.getElementById('rawLogs'),
   logFile: document.getElementById('logFile'),
+  pickFileBtn: document.getElementById('pickFileBtn'),
+  fileName: document.getElementById('fileName'),
   uploadInfo: document.getElementById('uploadInfo'),
   apiInput: document.getElementById('apiInput'),
   appendApiData: document.getElementById('appendApiData'),
@@ -48,6 +50,16 @@ function bindEvents() {
   if (els.menuToggle) {
     els.menuToggle.addEventListener('click', () => {
       els.navLinks.classList.toggle('open');
+    });
+  }
+
+  if (els.pickFileBtn && els.logFile) {
+    els.pickFileBtn.addEventListener('click', () => {
+      els.logFile.click();
+    });
+    els.logFile.addEventListener('change', () => {
+      const file = els.logFile.files && els.logFile.files[0];
+      els.fileName.textContent = file ? `${file.name} (${Math.ceil(file.size / 1024)} KB)` : 'Henüz dosya seçilmedi';
     });
   }
 
@@ -379,6 +391,9 @@ function clearAll() {
   els.rawLogs.value = '';
   els.apiInput.value = '';
   els.logFile.value = '';
+  if (els.fileName) {
+    els.fileName.textContent = 'Henüz dosya seçilmedi';
+  }
   els.reportOutput.value = '';
   els.alertsList.innerHTML = '';
   els.correlationList.innerHTML = '';
