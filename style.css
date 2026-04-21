@@ -72,10 +72,14 @@ body {
   font-family: 'Sora', sans-serif;
   font-weight: 700;
   font-size: 1.02rem;
-  color: var(--text);
+  color: transparent;
+  background: linear-gradient(90deg, #28f0d0 0%, #67b8ff 45%, #ffc15d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
   letter-spacing: 0.2px;
   line-height: 1.2;
   max-width: 240px;
+  text-shadow: 0 0 20px rgba(103, 184, 255, 0.22);
 }
 
 .nav-links {
