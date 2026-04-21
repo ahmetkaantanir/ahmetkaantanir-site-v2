@@ -59,7 +59,7 @@ function bindEvents() {
     });
     els.logFile.addEventListener('change', () => {
       const file = els.logFile.files && els.logFile.files[0];
-      els.fileName.textContent = file ? `${file.name} (${Math.ceil(file.size / 1024)} KB)` : 'Henüz dosya seçilmedi';
+      els.fileName.textContent = file ? `${file.name} (${Math.ceil(file.size / 1024)} KB)` : 'Henüz bir dosya yüklenmedi';
     });
   }
 
@@ -392,7 +392,7 @@ function clearAll() {
   els.apiInput.value = '';
   els.logFile.value = '';
   if (els.fileName) {
-    els.fileName.textContent = 'Henüz dosya seçilmedi';
+    els.fileName.textContent = 'Henüz bir dosya yüklenmedi';
   }
   els.reportOutput.value = '';
   els.alertsList.innerHTML = '';
