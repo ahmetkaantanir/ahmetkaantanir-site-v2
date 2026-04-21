@@ -3,64 +3,279 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ahmet Kaan Tanır</title>
+  <meta name="description" content="Etkilesimli log analizi egitim, analiz ve arac platformu">
+  <title>AKT Log Intelligence Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div class="noise"></div>
+  <header class="site-header">
+    <nav class="nav shell">
+      <a class="brand" href="#hero">AKT Log Intelligence Lab</a>
+      <button id="menuToggle" class="menu-toggle" aria-label="Menüyü aç">Menu</button>
+      <ul id="navLinks" class="nav-links">
+        <li><a href="#architecture">Mimari</a></li>
+        <li><a href="#sources">Log Kaynaklari</a></li>
+        <li><a href="#tool">Analiz Araci</a></li>
+        <li><a href="#dashboard">Dashboard</a></li>
+        <li><a href="#reporting">Raporlama</a></li>
+        <li><a href="#blog">Blog</a></li>
+      </ul>
+    </nav>
+  </header>
 
-<header>
-  <nav>
-    <h1>AKT</h1>
-    <ul>
-      <li><a href="#about">Hakkımda</a></li>
-      <li><a href="#works">Çalışmalar</a></li>
-      <li><a href="#blog">Yazılar</a></li>
-      <li><a href="#contact">İletişim</a></li>
-    </ul>
-  </nav>
-</header>
+  <main>
+    <section id="hero" class="hero shell reveal">
+      <p class="eyebrow">Egitim + Analiz + Arac</p>
+      <h1>Gercek loglari coz, saldiriyi gor, raporu uret.</h1>
+      <p class="hero-sub">
+        Bu platform yalnizca icerik sitesi degil: dosya yukleme, parse, saldiri tespiti,
+        alarm, korelasyon ve raporlama yapan mini SIEM deneyimi sunar.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#tool">Analizi Baslat</a>
+        <a class="btn" href="#lab">Demo Lab Ac</a>
+      </div>
+      <div class="hero-stats">
+        <article>
+          <h3 id="statLogs">0</h3>
+          <p>Islenen Kayit</p>
+        </article>
+        <article>
+          <h3 id="statAlerts">0</h3>
+          <p>Uretilen Alarm</p>
+        </article>
+        <article>
+          <h3 id="statRisk">Dusuk</h3>
+          <p>Guncel Risk Seviyesi</p>
+        </article>
+      </div>
+    </section>
 
-<section class="hero">
-  <h2>Ahmet Kaan Tanır</h2>
-  <p>Adli Bilişim • Siber Güvenlik • Teknoloji</p>
-</section>
+    <section id="architecture" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">1. Ana Mimari</p>
+        <h2>Uctan uca veri akisi</h2>
+      </div>
+      <div class="flow-grid">
+        <div>Log Kaynagi</div>
+        <div>Toplama</div>
+        <div>Isleme</div>
+        <div>Analiz</div>
+        <div>Gorsellestirme</div>
+        <div>Alarm</div>
+        <div>Rapor</div>
+      </div>
+      <p class="muted">
+        Mimari, ELK yaklasimindan ilham alir: ingest-parsing-analytics-visual-alert-report katmanlari ayridir.
+      </p>
+    </section>
 
-<section id="about">
-  <h3>Hakkımda</h3>
-  <p>
-    Adli bilişim mühendisliği ve siber güvenlik alanlarında
-    kendini geliştiren, teknoloji odaklı bir öğrenciyim.
-  </p>
-</section>
+    <section id="sources" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">2. Log Kaynaklari</p>
+        <h2>Desteklenen veri tipleri + dataset</h2>
+      </div>
+      <div class="cards four">
+        <article class="card"><h3>Web Log</h3><p>Apache/Nginx access ve error satirlari</p></article>
+        <article class="card"><h3>Sistem Log</h3><p>Linux syslog servis ve cekirdek olaylari</p></article>
+        <article class="card"><h3>Auth Log</h3><p>SSH login, failed auth, brute force izleri</p></article>
+        <article class="card"><h3>Firewall Log</h3><p>DROP/ACCEPT trafik ve port anomalleri</p></article>
+      </div>
+      <div class="dataset-actions">
+        <button class="btn" data-dataset="apache">Apache Dataset Yukle</button>
+        <button class="btn" data-dataset="auth">Auth Dataset Yukle</button>
+        <button class="btn" data-dataset="mixed">Karisik Saldiri Dataseti</button>
+      </div>
+    </section>
 
-<section id="works">
-  <h3>Çalışmalar</h3>
-  <div class="cards">
-    <div class="card">CTF Çalışmaları</div>
-    <div class="card">Web Projeleri</div>
-    <div class="card">Siber Güvenlik Notları</div>
-  </div>
-</section>
+    <section id="tool" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">3. Etkilesimli Tool</p>
+        <h2>Log yukle, parse et, analizi calistir</h2>
+      </div>
+      <div class="tool-grid">
+        <article class="panel">
+          <h3>Log Toplama</h3>
+          <p>.log, .txt, .json desteklenir. Maksimum dosya boyutu: 5 MB.</p>
+          <input id="logFile" type="file" accept=".log,.txt,.json">
+          <label for="apiInput">API Simulasyon (JSON line)</label>
+          <textarea id="apiInput" rows="7" placeholder='{"source":"api","message":"..."}'></textarea>
+          <button id="appendApiData" class="btn">API Verisini Ekle</button>
+        </article>
 
-<section id="blog">
-  <h3>Yazılar</h3>
-  <ul>
-    <li>🔹 Siber Güvenliğe Giriş</li>
-    <li>🔹 CTF Nedir?</li>
-    <li>🔹 Web Güvenliği Temelleri</li>
-  </ul>
-</section>
+        <article class="panel">
+          <h3>Ham Log Girisi</h3>
+          <textarea id="rawLogs" rows="12" placeholder="Log verisini buraya yapistirin veya dataset secin"></textarea>
+          <div class="tool-actions">
+            <button id="runAnalysis" class="btn btn-primary">Analizi Baslat</button>
+            <button id="clearLogs" class="btn">Temizle</button>
+          </div>
+          <p id="uploadInfo" class="muted"></p>
+        </article>
+      </div>
+    </section>
 
-<section id="contact">
-  <h3>İletişim</h3>
-  <p>Mail: ahmet@ahmetkaantanir.com</p>
-  <p>LinkedIn: linkedin.com/in/ahmetkaantanir</p>
-</section>
+    <section id="dashboard" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">4. Dashboard</p>
+        <h2>Kibana benzeri temel gozlem paneli</h2>
+      </div>
+      <div class="kpi-grid">
+        <article class="kpi"><p>Toplam Islem</p><h3 id="kpiTotal">0</h3></article>
+        <article class="kpi"><p>Failed Login</p><h3 id="kpiFailed">0</h3></article>
+        <article class="kpi"><p>Error Orani</p><h3 id="kpiError">0%</h3></article>
+        <article class="kpi"><p>En Aktif IP</p><h3 id="kpiTopIp">-</h3></article>
+      </div>
+      <div class="viz-grid">
+        <article class="panel">
+          <h3>Trafik Grafigi (Saatlik)</h3>
+          <canvas id="trafficChart" width="500" height="220"></canvas>
+        </article>
+        <article class="panel">
+          <h3>IP Dagilimi</h3>
+          <canvas id="ipChart" width="500" height="220"></canvas>
+        </article>
+      </div>
+      <div class="viz-grid">
+        <article class="panel">
+          <h3>IP Reputation</h3>
+          <ul id="reputationList" class="clean-list"></ul>
+        </article>
+        <article class="panel">
+          <h3>Geo Dagilimi</h3>
+          <ul id="geoList" class="clean-list"></ul>
+        </article>
+      </div>
+      <div class="viz-grid">
+        <article class="panel">
+          <h3>ML Anomaly Detection (z-score)</h3>
+          <ul id="anomalyList" class="clean-list"></ul>
+        </article>
+        <article class="panel">
+          <h3>Gercek Zamanli Olay Akisi</h3>
+          <ul id="streamEvents" class="clean-list"></ul>
+        </article>
+      </div>
+      <article class="panel">
+        <h3>Alarmlar ve Isaretlenen Kayitlar</h3>
+        <ul id="alertsList" class="alerts"></ul>
+      </article>
+    </section>
 
-<footer>
-  <p>© 2025 Ahmet Kaan Tanır</p>
-</footer>
+    <section id="correlation" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">5. Korelasyon Motoru</p>
+        <h2>Scan + login denemesi senaryosu</h2>
+      </div>
+      <article class="panel">
+        <p>
+          Ayni IP once dizin taramasi (scan), sonra basarisiz login denemeleri yapiyorsa
+          bu davranis zinciri "saldiri senaryosu" olarak etiketlenir.
+        </p>
+        <ul id="correlationList" class="clean-list"></ul>
+      </article>
+    </section>
 
-<script src="script.js"></script>
+    <section id="reporting" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">6. Raporlama</p>
+        <h2>Gunluk / Haftalik guvenlik raporu</h2>
+      </div>
+      <article class="panel">
+        <div class="tool-actions">
+          <button id="generateDaily" class="btn">Gunluk Rapor Uret</button>
+          <button id="generateWeekly" class="btn">Haftalik Rapor Uret</button>
+          <button id="downloadReport" class="btn btn-primary">Raporu Indir</button>
+        </div>
+        <textarea id="reportOutput" rows="12" placeholder="Rapor burada olusacak"></textarea>
+      </article>
+    </section>
+
+    <section id="lab" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">7. Demo Lab</p>
+        <h2>Hazir senaryo ile ogrenme alani</h2>
+      </div>
+      <div class="cards three">
+        <article class="card">
+          <h3>Lab 1: Brute Force</h3>
+          <p>10+ failed login alarmini tetiklemeyi dene.</p>
+        </article>
+        <article class="card">
+          <h3>Lab 2: SQL Injection</h3>
+          <p>Query payload izlerini yakala ve alarm raporla.</p>
+        </article>
+        <article class="card">
+          <h3>Lab 3: Gece Trafik Anomalisi</h3>
+          <p>00:00-05:00 saatlerinde artis tespit et.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="blog" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">8. Egitim Icerigi</p>
+        <h2>Derinlemesine konu basliklari</h2>
+      </div>
+      <div class="cards two">
+        <article class="card blog-card">
+          <h3>Log Analizi Nedir?</h3>
+          <p>Kayitlardan olay zamani, actor, hedef ve etkilenim analizi yapma metodolojisi.</p>
+        </article>
+        <article class="card blog-card">
+          <h3>Apache Log Nasil Okunur?</h3>
+          <p>Common Log Format alanlari: IP, timestamp, request, status, bytes, referer, UA.</p>
+        </article>
+        <article class="card blog-card">
+          <h3>Brute Force Tespiti</h3>
+          <p>Kisa zaman araliginda tekrarlayan failed login olaylari ve IP yogunlugu.</p>
+        </article>
+        <article class="card blog-card">
+          <h3>SQL Injection Logdan Nasil Anlasilir?</h3>
+          <p>OR 1=1, UNION SELECT, information_schema gibi imzalarin request icinde aranmasi.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="security" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">9. Platform Guvenligi</p>
+        <h2>Uygulamanin kendi savunma katmani</h2>
+      </div>
+      <div class="cards four">
+        <article class="card"><h3>HTTPS</h3><p>Canli ortamda TLS zorunlu, HSTS onerilir.</p></article>
+        <article class="card"><h3>Upload Kontrolu</h3><p>Uzanti, boyut ve icerik dogrulamasi uygulanir.</p></article>
+        <article class="card"><h3>Zararli Dosya Engeli</h3><p>Script/ikili icerik filtrelenir, parser sandbox mantigi kullanilir.</p></article>
+        <article class="card"><h3>Rate Limiting</h3><p>API uc noktalarinda dakikalik istek limitleri uygulanir.</p></article>
+      </div>
+    </section>
+
+    <section id="stack" class="shell reveal">
+      <div class="section-head">
+        <p class="eyebrow">10. Teknik Stack</p>
+        <h2>Baslangic ve ileri seviye yol haritasi</h2>
+      </div>
+      <div class="cards two">
+        <article class="card">
+          <h3>Baslangic</h3>
+          <p>Frontend: HTML/CSS/JS, Backend: Flask, DB: SQLite veya MongoDB.</p>
+        </article>
+        <article class="card">
+          <h3>Gelisim</h3>
+          <p>ELK stack, API katmani, gercek zamanli stream, anomaly detection, IP reputation ve geo-IP.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer shell">
+    <p>© 2026 AKT Log Intelligence Lab</p>
+  </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>

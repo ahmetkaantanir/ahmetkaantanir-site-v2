@@ -1,0 +1,9 @@
+203.0.113.50 - - [21/Apr/2026:02:01:02 +0300] "GET /wp-admin HTTP/1.1" 404 221
+203.0.113.50 - - [21/Apr/2026:02:01:04 +0300] "GET /phpmyadmin HTTP/1.1" 404 221
+203.0.113.50 - - [21/Apr/2026:02:01:07 +0300] "GET /?id=1%20OR%201=1 HTTP/1.1" 500 612
+203.0.113.50 - - [21/Apr/2026:02:01:11 +0300] "GET /search?q=<script>alert(1)</script> HTTP/1.1" 400 344
+Apr 21 02:01:15 srv01 sshd[3001]: Failed password for invalid user admin from 203.0.113.50 port 41222 ssh2
+Apr 21 02:01:20 srv01 sshd[3002]: Failed password for invalid user admin from 203.0.113.50 port 41244 ssh2
+Apr 21 02:01:25 srv01 sshd[3003]: Failed password for invalid user admin from 203.0.113.50 port 41266 ssh2
+Apr 21 02:01:29 srv01 sshd[3004]: Failed password for invalid user admin from 203.0.113.50 port 41288 ssh2
+{"timestamp":"2026-04-21T02:01:33Z","ip":"203.0.113.50","endpoint":"/api/login","status":401,"message":"failed login"}
