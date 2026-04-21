@@ -28,7 +28,8 @@ body {
     radial-gradient(circle at 90% 0%, rgba(255, 179, 71, 0.2), transparent 30%),
     linear-gradient(165deg, #060d14, #091827 60%, #0a1e2f);
   color: var(--text);
-  line-height: 1.6;
+  line-height: 1.72;
+  text-rendering: optimizeLegibility;
 }
 
 .noise {
@@ -69,8 +70,11 @@ body {
   text-decoration: none;
   font-family: 'Sora', sans-serif;
   font-weight: 700;
+  font-size: 1.02rem;
   color: var(--text);
-  letter-spacing: 0.4px;
+  letter-spacing: 0.2px;
+  line-height: 1.2;
+  max-width: 240px;
 }
 
 .nav-links {
@@ -83,6 +87,7 @@ body {
   text-decoration: none;
   color: var(--muted);
   font-size: 0.95rem;
+  font-weight: 500;
   transition: color 180ms ease;
 }
 
@@ -121,6 +126,7 @@ h2,
 h3 {
   font-family: 'Sora', sans-serif;
   letter-spacing: 0.3px;
+  line-height: 1.25;
 }
 
 h1 {
@@ -132,7 +138,23 @@ h1 {
 .hero-sub {
   margin-top: 18px;
   max-width: 65ch;
-  color: var(--muted);
+  color: #b9cce6;
+  font-size: 1.06rem;
+}
+
+p {
+  color: #b7cce6;
+}
+
+.panel h3,
+.card h3,
+.kpi h3 {
+  margin-bottom: 8px;
+}
+
+.panel p,
+.card p {
+  font-size: 0.98rem;
 }
 
 .hero-cta,
@@ -206,6 +228,7 @@ h1 {
 .muted {
   color: var(--muted);
   margin-top: 10px;
+  font-size: 0.95rem;
 }
 
 .flow-grid {
