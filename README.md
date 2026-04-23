@@ -42,6 +42,12 @@ Interactive mini-SIEM platform with training content, log analysis engine, dashb
 ## Run locally
 
 1. Create and activate a Python environment.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
 2. Install dependencies:
 
 ```powershell
@@ -51,7 +57,7 @@ pip install -r requirements.txt
 3. Start app:
 
 ```powershell
-python app.py
+.\.venv\Scripts\python.exe app.py
 ```
 
 4. Open in browser:
@@ -74,5 +80,7 @@ python app.py
 ## Production notes
 
 - Put Flask behind Nginx and enforce HTTPS.
+- Use a production WSGI server (for example Waitress or Gunicorn on Linux).
+- Disable debug mode and configure `APP_HOST`, `APP_PORT`, `FLASK_DEBUG` via environment variables.
 - Add strict upload content scanning and WAF rules.
 - Move rate limiting to reverse proxy or Redis-backed limiter for scale.
