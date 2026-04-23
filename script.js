@@ -96,6 +96,9 @@ function bindEvents() {
         const res = await fetch(`${API_BASE}/api/datasets/${encodeURIComponent(fileName)}`);
         const payload = await parseJsonResponse(res);
         if (!payload) {
+          if (!res.ok) {
+            throw new Error(friendlyHttpError(res.status, `Dataset okunamadi (HTTP ${res.status})`));
+          }
           throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${res.status})`);
         }
         if (!res.ok) {
@@ -169,6 +172,9 @@ async function runAnalysis() {
 
     const payload = await parseJsonResponse(response);
     if (!payload) {
+      if (!response.ok) {
+        throw new Error(friendlyHttpError(response.status, `Analiz istegi basarisiz (HTTP ${response.status})`));
+      }
       throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${response.status})`);
     }
     if (!response.ok) {
@@ -323,6 +329,9 @@ async function generateReport(reportType) {
     });
     const payload = await parseJsonResponse(res);
     if (!payload) {
+      if (!res.ok) {
+        throw new Error(friendlyHttpError(res.status, `Rapor uretilemedi (HTTP ${res.status})`));
+      }
       throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${res.status})`);
     }
     if (!res.ok) {
