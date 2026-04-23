@@ -1,4 +1,4 @@
-const API_BASE = '';
+const API_BASE = resolveApiBase();
 let latestAnalysis = null;
 let latestAnalysisId = null;
 
@@ -99,7 +99,7 @@ function bindEvents() {
           throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${res.status})`);
         }
         if (!res.ok) {
-          throw new Error(resolveApiError(payload, 'Dataset okunamadi'));
+          throw new Error(resolveApiError(payload, friendlyHttpError(res.status, 'Dataset okunamadi')));
         }
         els.rawLogs.value = payload.content || '';
         info(`${payload.name} yuklendi.`);
@@ -172,7 +172,7 @@ async function runAnalysis() {
       throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${response.status})`);
     }
     if (!response.ok) {
-      throw new Error(resolveApiError(payload, 'Analiz istegi basarisiz'));
+      throw new Error(resolveApiError(payload, friendlyHttpError(response.status, 'Analiz istegi basarisiz')));
     }
 
     latestAnalysis = payload.analysis;
@@ -326,7 +326,7 @@ async function generateReport(reportType) {
       throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${res.status})`);
     }
     if (!res.ok) {
-      throw new Error(resolveApiError(payload, 'Rapor uretilemedi'));
+      throw new Error(resolveApiError(payload, friendlyHttpError(res.status, 'Rapor uretilemedi')));
     }
     els.reportOutput.value = payload.report || '';
     info(`${reportType} raporu olusturuldu.`);
@@ -423,6 +423,27 @@ function resolveApiError(payload, fallbackMessage) {
   }
   if (typeof payload.message === 'string' && payload.message.trim()) {
     return payload.message;
+  }
+  return fallbackMessage;
+}
+
+function resolveApiBase() {
+  const { protocol, hostname, port } = window.location;
+  const isLocalHost = hostname === '127.0.0.1' || hostname === 'localhost';
+
+  // If page runs from file:// or a local static server, target Flask API directly.
+  if (protocol === 'file:') {
+    return 'http://127.0.0.1:5000';
+  }
+  if (isLocalHost && port && port !== '5000') {
+    return 'http://127.0.0.1:5000';
+  }
+  return '';
+}
+
+function friendlyHttpError(status, fallbackMessage) {
+  if (status === 405) {
+    return 'HTTP 405: API istegi yanlis sunucuya gidiyor. Flask backendi 127.0.0.1:5000 uzerinde calistirin.';
   }
   return fallbackMessage;
 }
