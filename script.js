@@ -22,10 +22,6 @@ const els = {
   clearLogs: document.getElementById('clearLogs'),
   alertsList: document.getElementById('alertsList'),
   correlationList: document.getElementById('correlationList'),
-  reputationList: document.getElementById('reputationList'),
-  geoList: document.getElementById('geoList'),
-  anomalyList: document.getElementById('anomalyList'),
-  streamEvents: document.getElementById('streamEvents'),
   kpiTotal: document.getElementById('kpiTotal'),
   kpiFailed: document.getElementById('kpiFailed'),
   kpiError: document.getElementById('kpiError'),
@@ -43,7 +39,6 @@ const els = {
 
 bindEvents();
 bootRevealAnimation();
-connectStream();
 bindResponsiveRedraw();
 
 function bindEvents() {
@@ -99,10 +94,13 @@ function bindEvents() {
       }
       try {
         const res = await fetch(`${API_BASE}/api/datasets/${encodeURIComponent(fileName)}`);
-        if (!res.ok) {
-          throw new Error('Dataset okunamadi');
+        const payload = await parseJsonResponse(res);
+        if (!payload) {
+          throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${res.status})`);
         }
-        const payload = await res.json();
+        if (!res.ok) {
+          throw new Error(resolveApiError(payload, 'Dataset okunamadi'));
+        }
         els.rawLogs.value = payload.content || '';
         info(`${payload.name} yuklendi.`);
       } catch {
@@ -169,9 +167,12 @@ async function runAnalysis() {
       });
     }
 
-    const payload = await response.json();
+    const payload = await parseJsonResponse(response);
+    if (!payload) {
+      throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${response.status})`);
+    }
     if (!response.ok) {
-      throw new Error(payload.error || 'Analiz istegi basarisiz');
+      throw new Error(resolveApiError(payload, 'Analiz istegi basarisiz'));
     }
 
     latestAnalysis = payload.analysis;
@@ -180,9 +181,6 @@ async function runAnalysis() {
     renderKpis(latestAnalysis);
     renderAlerts(latestAnalysis.alerts || []);
     renderCorrelation(latestAnalysis.correlations || []);
-    renderReputation(latestAnalysis.ip_reputation || []);
-    renderGeo(latestAnalysis.geo_distribution || []);
-    renderAnomaly(latestAnalysis.anomaly_detection || {});
     drawTrafficChart(latestAnalysis.hourly_traffic || []);
     drawIpChart(latestAnalysis.top_ips || []);
 
@@ -242,49 +240,6 @@ function renderCorrelation(correlations) {
     li.className = 'scenario-item';
     li.textContent = scenario;
     els.correlationList.appendChild(li);
-  });
-}
-
-function renderReputation(rows) {
-  els.reputationList.innerHTML = '';
-  if (!rows.length) {
-    els.reputationList.innerHTML = '<li class="scenario-item">Reputation verisi yok.</li>';
-    return;
-  }
-  rows.slice(0, 8).forEach((row) => {
-    const li = document.createElement('li');
-    li.className = 'scenario-item';
-    li.textContent = `${row.ip} | score: ${row.score} | level: ${String(row.level).toUpperCase()}`;
-    els.reputationList.appendChild(li);
-  });
-}
-
-function renderGeo(rows) {
-  els.geoList.innerHTML = '';
-  if (!rows.length) {
-    els.geoList.innerHTML = '<li class="scenario-item">Geo dagilimi yok.</li>';
-    return;
-  }
-  rows.forEach((row) => {
-    const li = document.createElement('li');
-    li.className = 'scenario-item';
-    li.textContent = `${row.country}: ${row.count} IP grubu`;
-    els.geoList.appendChild(li);
-  });
-}
-
-function renderAnomaly(anomaly) {
-  els.anomalyList.innerHTML = '';
-  const rows = anomaly.anomalies || [];
-  if (!rows.length) {
-    els.anomalyList.innerHTML = '<li class="scenario-item">Anomali tespit edilmedi.</li>';
-    return;
-  }
-  rows.forEach((row) => {
-    const li = document.createElement('li');
-    li.className = 'scenario-item';
-    li.textContent = `Saat ${row.hour}: trafik ${row.value}, z-score ${row.z_score}`;
-    els.anomalyList.appendChild(li);
   });
 }
 
@@ -366,9 +321,12 @@ async function generateReport(reportType) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const payload = await res.json();
+    const payload = await parseJsonResponse(res);
+    if (!payload) {
+      throw new Error(`Sunucu gecerli JSON donmedi (HTTP ${res.status})`);
+    }
     if (!res.ok) {
-      throw new Error(payload.error || 'Rapor uretilemedi');
+      throw new Error(resolveApiError(payload, 'Rapor uretilemedi'));
     }
     els.reportOutput.value = payload.report || '';
     info(`${reportType} raporu olusturuldu.`);
@@ -404,9 +362,6 @@ function clearAll() {
   els.reportOutput.value = '';
   els.alertsList.innerHTML = '';
   els.correlationList.innerHTML = '';
-  els.reputationList.innerHTML = '';
-  els.geoList.innerHTML = '';
-  els.anomalyList.innerHTML = '';
   latestAnalysis = null;
   latestAnalysisId = null;
 
@@ -421,37 +376,6 @@ function clearAll() {
   clearCanvas(els.trafficChart);
   clearCanvas(els.ipChart);
   info('Alanlar temizlendi.');
-}
-
-function connectStream() {
-  if (!window.EventSource) {
-    return;
-  }
-  const source = new EventSource(`${API_BASE}/api/stream`);
-  source.onmessage = (event) => {
-    try {
-      const payload = JSON.parse(event.data);
-      if (payload && payload.analysis_id) {
-        info(`Canli olay: analiz #${payload.analysis_id}, risk ${String(payload.risk || 'low').toUpperCase()}`);
-        addStreamEvent(`Analiz #${payload.analysis_id} | risk ${String(payload.risk || 'low').toUpperCase()} | logs ${payload.total}`);
-      }
-    } catch {
-      // ignore stream parse errors
-    }
-  };
-}
-
-function addStreamEvent(text) {
-  if (!els.streamEvents) {
-    return;
-  }
-  const li = document.createElement('li');
-  li.className = 'scenario-item';
-  li.textContent = text;
-  els.streamEvents.prepend(li);
-  while (els.streamEvents.children.length > 8) {
-    els.streamEvents.removeChild(els.streamEvents.lastChild);
-  }
 }
 
 function toRiskLabel(value) {
@@ -477,6 +401,30 @@ function safeJsonParse(text) {
   } catch {
     return null;
   }
+}
+
+async function parseJsonResponse(response) {
+  const raw = await response.text();
+  if (!raw || !raw.trim()) {
+    return null;
+  }
+  return safeJsonParse(raw);
+}
+
+function resolveApiError(payload, fallbackMessage) {
+  if (!payload || typeof payload !== 'object') {
+    return fallbackMessage;
+  }
+  if (typeof payload.error === 'string' && payload.error.trim()) {
+    return payload.error;
+  }
+  if (payload.error && typeof payload.error.message === 'string' && payload.error.message.trim()) {
+    return payload.error.message;
+  }
+  if (typeof payload.message === 'string' && payload.message.trim()) {
+    return payload.message;
+  }
+  return fallbackMessage;
 }
 
 function clearCanvas(canvas) {
