@@ -171,7 +171,14 @@ def create_app() -> Flask:
         resp.headers['X-Content-Type-Options'] = 'nosniff'
         resp.headers['X-Frame-Options'] = 'DENY'
         resp.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        resp.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; img-src 'self' data:"
+        resp.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "script-src 'self' https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "connect-src 'self';"
+        )
         return resp
 
     @app.before_request
@@ -323,9 +330,9 @@ def stream() -> Response:
         while True:
             try:
                 item = stream_queue.get(timeout=20)
-                yield f"data: {json.dumps(item)}\\n\\n"
+                yield f"data: {json.dumps(item)}\n\n"
             except queue.Empty:
-                yield 'event: keepalive\\ndata: {}\\n\\n'
+                yield "event: keepalive\ndata: {}\n\n"
 
     return Response(event_generator(), mimetype='text/event-stream')
 
