@@ -1,86 +1,145 @@
-# AKT Log Intelligence Lab
+# Log Intelligence Lab
 
-Interactive mini-SIEM platform with training content, log analysis engine, dashboard, alerts, correlation, and report generation.
+> **Interactive mini-SIEM platform** — upload real logs, detect attacks, correlate events, and generate security reports. Built with Python + Flask + vanilla JS.
+
+---
+
+## Architecture
+
+```
+Log Source (file / API / dataset)
+        │
+        ▼
+ ┌─────────────────────────────────────────┐
+ │           Flask Backend (app.py)        │
+ │  • File upload validation (5 MB limit)  │
+ │  • Rate limiting (token-bucket)         │
+ │  • Security headers (CSP, HSTS, etc.)   │
+ └───────────────┬─────────────────────────┘
+                 │
+        ┌────────▼────────┐
+        │  log_engine.py  │
+        │  • Multi-format parser             │
+        │    Apache / Auth / Firewall / JSON │
+        │  • Attack signature detection      │
+        │    SQLi · XSS · Dir Traversal      │
+        │  • Analyzer                        │
+        │    IP counts · error rate · top EP │
+        │  • Brute-force alert rules         │
+        │  • Correlation engine              │
+        │    scan → then login               │
+        │  • Z-Score anomaly detection       │
+        │  • IP reputation scoring           │
+        │  • Report builder                  │
+        └────────┬────────┘
+                 │
+  ┌──────────────▼──────────────────┐
+  │         SQLite (analysis.db)    │
+  │  Analysis history · 25 records  │
+  └──────────────┬──────────────────┘
+                 │
+  ┌──────────────▼──────────────────────────────────────┐
+  │              Frontend (index.html + script.js)       │
+  │  • KPI Dashboard     • Chart.js (traffic, IP dist.)  │
+  │  • Alert list        • Correlation panel             │
+  │  • Anomaly panel     • IP Reputation panel           │
+  │  • Analysis history  • Report generator + download   │
+  │  • Drag & Drop upload  • SSE real-time stream        │
+  └──────────────────────────────────────────────────────┘
+```
 
 ## Features
 
-- Multi-source logs: Apache/Nginx, syslog/auth, firewall, JSON API events
-- Collection methods:
-  - File upload (.log, .txt, .json)
-  - API payload ingestion
-  - Built-in demo datasets
-- Parsing pipeline:
-  - Regex parsers for web/auth/firewall logs
-  - JSON parser for structured events
-  - Field extraction: IP, timestamp, request, status
-- Analytics engine:
-  - Suspicious activity rules
-  - SQLi/XSS/Directory Traversal signature detection
-  - Correlation: scan then login attempts
-  - Statistics: top IP, top endpoints, error rate
-- Visualization:
-  - KPI dashboard
-  - Hourly traffic and IP distribution charts
-  - Reputation, geo distribution, anomaly panels
-- Alerting:
-  - 10 failed logins
-  - 1000 requests/min threshold
-  - Attack signature alerts
-- Reporting:
-  - Daily/Weekly report generation
-  - Downloadable TXT report
-- Security hardening basics:
-  - File extension and size checks
-  - Simple API rate limiting
-  - Input validation and path traversal guard
+| Area | Details |
+|------|---------|
+| **Log Parsing** | Apache/Nginx, Linux auth (SSH), firewall DROP/ACCEPT, JSON API events |
+| **Collection** | File upload (.log/.txt/.json, max 5 MB), API payload, built-in demo datasets |
+| **Attack Detection** | SQL Injection, XSS, Directory Traversal signatures |
+| **Alerting** | 10+ failed logins, 1000 req/min threshold, nighttime anomaly |
+| **Correlation** | Scan-then-login scenario per IP |
+| **Anomaly Detection** | Z-Score on hourly traffic distribution |
+| **Visualization** | KPI cards, hourly traffic chart, top-IP bar chart, reputation & geo panels |
+| **Reporting** | Daily/Weekly text report, downloadable .txt |
+| **Security** | CSP headers, rate limiting, path traversal guard, upload content validation |
+| **Persistence** | SQLite — last 25 analyses stored and browsable |
+| **Real-time** | SSE stream (`/api/stream`) — heartbeat + analysis events |
 
-## Backend stack
+## Stack
 
-- Python + Flask
-- SQLite persistence for analysis history
+- **Backend**: Python 3.11+, Flask 3.0, SQLite
+- **Frontend**: Vanilla JS (ES2020), Chart.js 4, Space Grotesk / Sora fonts
+- **Testing**: pytest
 
-## Run locally
-
-1. Create and activate a Python environment.
+## Run Locally
 
 ```powershell
+# 1. Create virtual environment
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
 
-2. Install dependencies:
-
-```powershell
+# 2. Install dependencies
 pip install -r requirements.txt
+
+# 3. Start server
+python app.py
+
+# 4. Open browser → http://127.0.0.1:5000
 ```
 
-3. Start app:
+## Run Tests
 
 ```powershell
-.\.venv\Scripts\python.exe app.py
+.\.venv\Scripts\pytest tests/ -v
 ```
 
-4. Open in browser:
+## API Reference
 
-- http://127.0.0.1:5000
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/datasets` | List available datasets |
+| GET | `/api/datasets/<name>` | Load a dataset |
+| POST | `/api/analyze` | Analyze logs (file or JSON body) |
+| POST | `/api/report` | Generate report |
+| GET | `/api/analysis/history` | Last 25 analyses |
+| GET | `/api/stream` | SSE event stream |
 
-## API endpoints
+### POST /api/analyze
 
-- `GET /api/health`
-- `GET /api/datasets`
-- `GET /api/datasets/<name>`
-- `POST /api/analyze`
-  - multipart form-data with `file`
-  - or JSON body with `raw_logs` and optional `api_lines`
-- `POST /api/report`
-  - JSON body with `analysis_id` or inline `analysis`
-- `GET /api/analysis/history`
-- `GET /api/stream` (SSE)
+```json
+// JSON body
+{ "raw_logs": "192.168.1.1 - - [21/Apr/2026:10:00:00 +0300] \"GET / HTTP/1.1\" 200 1024" }
 
-## Production notes
+// or multipart/form-data with field: file
+```
 
-- Put Flask behind Nginx and enforce HTTPS.
-- Use a production WSGI server (for example Waitress or Gunicorn on Linux).
-- Disable debug mode and configure `APP_HOST`, `APP_PORT`, `FLASK_DEBUG` via environment variables.
-- Add strict upload content scanning and WAF rules.
-- Move rate limiting to reverse proxy or Redis-backed limiter for scale.
+### POST /api/report
+
+```json
+{ "report_type": "Daily", "analysis_id": 42 }
+```
+
+## Demo Datasets
+
+| Dataset | Contents |
+|---------|----------|
+| `apache.log` | 60+ entries: normal traffic, brute force, SQLi, XSS, directory traversal, scanner |
+| `auth.log` | 40+ entries: two SSH brute-force attacks, legitimate logins, night-time anomaly |
+| `mixed.log` | All log types combined: correlation scenario (scan → brute force → API attack) |
+
+## Deploy to Render (Free)
+
+1. Push this repo to GitHub
+2. Go to [render.com](https://render.com) → New → Web Service
+3. Connect your repo — Render auto-detects `render.yaml`
+4. Click **Deploy**
+
+The `render.yaml` in this repo handles the build and start commands.
+
+## Production Notes
+
+- Put Flask behind Nginx and enforce HTTPS / HSTS
+- Use a production WSGI server (Waitress on Windows, Gunicorn on Linux)
+- Disable debug: `FLASK_DEBUG=false`
+- Move rate limiting to Redis-backed limiter for scale
+- Add real GeoIP (MaxMind GeoLite2) and AbuseIPDB reputation lookup

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: log-intelligence-lab
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: APP_PORT
+        value: 10000
+      - key: FLASK_DEBUG
+        value: false
+    healthCheckPath: /api/health

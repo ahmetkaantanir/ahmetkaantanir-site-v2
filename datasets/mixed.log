@@ -1,9 +1,45 @@
-203.0.113.50 - - [21/Apr/2026:02:01:02 +0300] "GET /wp-admin HTTP/1.1" 404 221
-203.0.113.50 - - [21/Apr/2026:02:01:04 +0300] "GET /phpmyadmin HTTP/1.1" 404 221
-203.0.113.50 - - [21/Apr/2026:02:01:07 +0300] "GET /?id=1%20OR%201=1 HTTP/1.1" 500 612
-203.0.113.50 - - [21/Apr/2026:02:01:11 +0300] "GET /search?q=<script>alert(1)</script> HTTP/1.1" 400 344
-Apr 21 02:01:15 srv01 sshd[3001]: Failed password for invalid user admin from 203.0.113.50 port 41222 ssh2
-Apr 21 02:01:20 srv01 sshd[3002]: Failed password for invalid user admin from 203.0.113.50 port 41244 ssh2
-Apr 21 02:01:25 srv01 sshd[3003]: Failed password for invalid user admin from 203.0.113.50 port 41266 ssh2
-Apr 21 02:01:29 srv01 sshd[3004]: Failed password for invalid user admin from 203.0.113.50 port 41288 ssh2
-{"timestamp":"2026-04-21T02:01:33Z","ip":"203.0.113.50","endpoint":"/api/login","status":401,"message":"failed login"}
+203.0.113.50 - - [21/Apr/2026:02:00:01 +0300] "GET /robots.txt HTTP/1.1" 200 88
+203.0.113.50 - - [21/Apr/2026:02:00:03 +0300] "GET /wp-admin HTTP/1.1" 404 221
+203.0.113.50 - - [21/Apr/2026:02:00:05 +0300] "GET /wp-login.php HTTP/1.1" 404 221
+203.0.113.50 - - [21/Apr/2026:02:00:07 +0300] "GET /phpmyadmin HTTP/1.1" 404 221
+203.0.113.50 - - [21/Apr/2026:02:00:09 +0300] "GET /.env HTTP/1.1" 404 221
+203.0.113.50 - - [21/Apr/2026:02:00:11 +0300] "GET /backup.zip HTTP/1.1" 404 221
+203.0.113.50 - - [21/Apr/2026:02:00:13 +0300] "GET /config.php.bak HTTP/1.1" 404 221
+203.0.113.50 - - [21/Apr/2026:02:00:15 +0300] "GET /../../etc/passwd HTTP/1.1" 400 221
+203.0.113.50 - - [21/Apr/2026:02:00:18 +0300] "GET /items?id=1 UNION SELECT username,password FROM users-- HTTP/1.1" 500 612
+203.0.113.50 - - [21/Apr/2026:02:00:22 +0300] "GET /search?q=<script>alert(document.cookie)</script> HTTP/1.1" 400 344
+Apr 21 02:00:30 srv01 sshd[9001]: Failed password for invalid user root from 203.0.113.50 port 41222 ssh2
+Apr 21 02:00:34 srv01 sshd[9002]: Failed password for invalid user admin from 203.0.113.50 port 41224 ssh2
+Apr 21 02:00:38 srv01 sshd[9003]: Failed password for invalid user ubuntu from 203.0.113.50 port 41226 ssh2
+Apr 21 02:00:42 srv01 sshd[9004]: Failed password for invalid user deploy from 203.0.113.50 port 41228 ssh2
+Apr 21 02:00:46 srv01 sshd[9005]: Failed password for invalid user test from 203.0.113.50 port 41230 ssh2
+Apr 21 02:00:50 srv01 sshd[9006]: Failed password for invalid user guest from 203.0.113.50 port 41232 ssh2
+Apr 21 02:00:54 srv01 sshd[9007]: Failed password for invalid user backup from 203.0.113.50 port 41234 ssh2
+Apr 21 02:00:58 srv01 sshd[9008]: Failed password for invalid user git from 203.0.113.50 port 41236 ssh2
+Apr 21 02:01:02 srv01 sshd[9009]: Failed password for invalid user jenkins from 203.0.113.50 port 41238 ssh2
+Apr 21 02:01:06 srv01 sshd[9010]: Failed password for invalid user oracle from 203.0.113.50 port 41240 ssh2
+Apr 21 02:01:10 srv01 sshd[9011]: Failed password for invalid user postgres from 203.0.113.50 port 41242 ssh2
+Apr 21 02:01:14 srv01 sshd[9012]: Failed password for invalid user mysql from 203.0.113.50 port 41244 ssh2
+{"timestamp":"2026-04-21T02:01:33Z","ip":"203.0.113.50","endpoint":"/api/login","status":401,"message":"failed login attempt"}
+{"timestamp":"2026-04-21T02:01:38Z","ip":"203.0.113.50","endpoint":"/api/login","status":401,"message":"failed login attempt"}
+{"timestamp":"2026-04-21T02:01:43Z","ip":"203.0.113.50","endpoint":"/api/token","status":403,"message":"access denied"}
+KERNEL: DROP SRC=203.0.113.50 DST=10.0.0.5 DPT=3306 PROTO=TCP
+KERNEL: DROP SRC=203.0.113.50 DST=10.0.0.5 DPT=5432 PROTO=TCP
+KERNEL: DROP SRC=203.0.113.50 DST=10.0.0.5 DPT=27017 PROTO=TCP
+KERNEL: DROP SRC=45.10.10.10 DST=10.0.0.5 DPT=6379 PROTO=TCP
+KERNEL: DROP SRC=198.51.100.23 DST=10.0.0.5 DPT=22 PROTO=TCP
+198.51.100.23 - - [21/Apr/2026:03:00:01 +0300] "GET /search?q=admin' OR '1'='1 HTTP/1.1" 500 544
+198.51.100.23 - - [21/Apr/2026:03:00:05 +0300] "GET /user?id=1 AND SLEEP(5)-- HTTP/1.1" 500 388
+198.51.100.23 - - [21/Apr/2026:03:00:09 +0300] "GET /page?id=1 UNION SELECT table_name FROM information_schema.tables-- HTTP/1.1" 500 612
+45.10.10.10 - - [21/Apr/2026:03:30:00 +0300] "GET /comment?text=<img src=x onerror=alert(1)> HTTP/1.1" 400 312
+45.10.10.10 - - [21/Apr/2026:03:30:04 +0300] "GET /profile?bio=<svg onload=alert(1)> HTTP/1.1" 400 312
+91.108.4.100 - - [21/Apr/2026:04:00:00 +0300] "GET /download?file=../../../../etc/shadow HTTP/1.1" 403 312
+91.108.4.100 - - [21/Apr/2026:04:00:04 +0300] "GET /files/../../../win.ini HTTP/1.1" 400 221
+192.168.1.10 - - [21/Apr/2026:08:00:00 +0300] "GET / HTTP/1.1" 200 5321
+192.168.1.10 - - [21/Apr/2026:08:00:03 +0300] "GET /dashboard HTTP/1.1" 200 8821
+10.0.0.5 - - [21/Apr/2026:09:00:00 +0300] "GET /api/health HTTP/1.1" 200 88
+Apr 21 09:00:05 srv01 sshd[7001]: Accepted password for devops from 10.0.0.5 port 52001 ssh2
+{"timestamp":"2026-04-21T09:00:10Z","ip":"10.0.0.5","endpoint":"/api/analyze","status":200,"message":"analysis complete"}
+{"timestamp":"2026-04-21T09:00:15Z","ip":"192.168.1.10","endpoint":"/api/report","status":200,"message":"report generated"}
+KERNEL: ACCEPT SRC=192.168.1.10 DST=10.0.0.5 DPT=443 PROTO=TCP
+KERNEL: ACCEPT SRC=10.0.0.5 DST=10.0.0.20 DPT=5432 PROTO=TCP

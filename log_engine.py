@@ -3,7 +3,7 @@ import math
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from ipaddress import ip_address
 from typing import Any, Dict, List, Optional
 
@@ -66,7 +66,7 @@ def parse_logs(raw_text: str) -> List[ParsedLog]:
                 source='unknown',
                 raw=line,
                 ip=_extract_ip(line) or 'unknown',
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC).replace(tzinfo=None),
                 request=line[:80],
                 status=500 if re.search(r'error|fail|denied', line, re.IGNORECASE) else 200,
                 login_failed=bool(re.search(r'failed password|auth failed|invalid user', line, re.IGNORECASE)),
@@ -289,7 +289,7 @@ def _parse_firewall_line(raw: str, match: re.Match[str]) -> ParsedLog:
         source='firewall',
         raw=raw,
         ip=ip,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(UTC).replace(tzinfo=None),
         request=f'PORT:{dpt}',
         status=403 if action == 'DROP' else 200,
         login_failed=False,
@@ -315,7 +315,7 @@ def _parse_date_smart(value: str) -> datetime:
             continue
 
     if re.match(r'^\w+\s+\d+\s+\d+:\d+:\d+$', value):
-        current_year = datetime.utcnow().year
+        current_year = datetime.now(UTC).year
         try:
             return datetime.strptime(f'{value} {current_year}', '%b %d %H:%M:%S %Y')
         except ValueError:
@@ -324,7 +324,7 @@ def _parse_date_smart(value: str) -> datetime:
     try:
         return datetime.fromisoformat(value.replace('Z', '+00:00')).replace(tzinfo=None)
     except ValueError:
-        return datetime.utcnow()
+        return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _extract_ip(text: str) -> Optional[str]:
