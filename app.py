@@ -334,7 +334,10 @@ def stream() -> Response:
             except queue.Empty:
                 yield "event: keepalive\ndata: {}\n\n"
 
-    return Response(event_generator(), mimetype='text/event-stream')
+    resp = Response(event_generator(), mimetype='text/event-stream')
+    resp.headers['Cache-Control'] = 'no-cache'
+    resp.headers['X-Accel-Buffering'] = 'no'
+    return resp
 
 
 def _seed_stream_heartbeat() -> None:
@@ -351,7 +354,7 @@ def _seed_stream_heartbeat() -> None:
 
 if __name__ == '__main__':
     app.run(
-        host=os.environ.get('APP_HOST', '0.0.0.0'),
-        port=int(os.environ.get('APP_PORT', '5000')),
+        host='0.0.0.0',
+        port=int(os.environ.get('PORT', os.environ.get('APP_PORT', '5000'))),
         debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true',
     )
