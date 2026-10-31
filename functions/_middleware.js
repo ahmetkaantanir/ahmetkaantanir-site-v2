@@ -35,7 +35,9 @@ export async function onRequest(context) {
   // Fail closed. Cloudflare Pages must not publish backend source, test data,
   // CI configs, credentials or runtime databases from the Git repository.
   if (pathname.startsWith("/api/") || pathname === "/api") {
-    const configured = context.env.LOG_LAB_BACKEND_ORIGIN;
+    // Verified HTTPS origin for this repository (health + SOC paths validated).
+    // Cloudflare env can override it if the deployment is moved to a new host.
+    const configured = context.env.LOG_LAB_BACKEND_ORIGIN || "https://ahmetkaantanir-site-v2.onrender.com";
     if (typeof configured !== "string" || !configured.trim()) {
       return jsonError("Log analysis backend has not been connected to Cloudflare Pages", 503);
     }
