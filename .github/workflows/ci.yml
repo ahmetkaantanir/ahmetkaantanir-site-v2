@@ -28,3 +28,5 @@ jobs:
         run: |
           node --check script.js
           node --check soc.js
+          node --check functions/_middleware.js
+          node --test tests/pages_gate.test.mjs
