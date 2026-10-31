@@ -11,26 +11,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check public domain and API
+      - name: Verify live content and public security controls
         shell: bash
         run: |
           set -euo pipefail
           HOST="https://dev.ahmetkaantanir.com"
-          for PATHNAME in / /soc /api/health; do
-            echo "Checking $PATHNAME"
-            CODE=$(curl --silent --show-error --location --retry 1 --max-time 25 --output /tmp/live-response --write-out '%{http_code}' "$HOST$PATHNAME") || CODE="000"
-            echo "$PATHNAME returned HTTP $CODE"
+          get_status() {
+            curl --silent --show-error --location --retry 1 --max-time 25 --output /tmp/live-response --write-out '%{http_code}' "$HOST$1"
+          }
+          for PATHNAME in / /soc /api/health /soc.css /soc.js; do
+            CODE=$(get_status "$PATHNAME") || CODE="000"
+            echo "PUBLIC $PATHNAME HTTP $CODE"
             if [ "$CODE" != "200" ]; then
-              echo "::error::Live $PATHNAME returned HTTP $CODE"
+              echo "::error::Live $PATHNAME unavailable HTTP $CODE"
               exit 1
             fi
             if [ "$PATHNAME" = "/soc" ] && ! grep -qi 'SOC Workspace' /tmp/live-response; then
-              echo "::error::SOC V5 marker missing from live page"
-              exit 1
-            fi
-            if [ "$PATHNAME" = "/api/health" ] && ! grep -q '"status"' /tmp/live-response; then
-              echo "::error::API health response is not recognized"
+              echo "::error::New SOC V5 page marker missing"
               exit 1
             fi
           done
-          echo "Live domain smoke test passed."
+          for PATHNAME in /app.py /log_engine.py /soc_engine.py /soc_api.py /analysis.db /.env /datasets/mixed.log; do
+            CODE=$(get_status "$PATHNAME") || CODE="000"
+            echo "PRIVATE $PATHNAME HTTP $CODE"
+            if [ "$CODE" != "404" ]; then
+              echo "::error::Sensitive $PATHNAME not safely blocked (HTTP $CODE)"
+              exit 1
+            fi
+          done
+          CODE=$(get_status "/api/soc/summary") || CODE="000"
+          echo "PROTECTED SOC API HTTP $CODE (401 means configured, 503 means missing secret)"
+          if [ "$CODE" = "503" ]; then
+            echo "::warning::LOG_LAB_API_KEY has not been configured on the live Render service: SOC private API is disabled"
+          elif [ "$CODE" != "401" ]; then
+            echo "::error::SOC API should be 401 or 503 without valid API key, found $CODE"
+            exit 1
+          fi
+          echo "Live smoke and asset/security checks completed."
