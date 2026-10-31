@@ -65,9 +65,15 @@ try {
   await timeline.click();
   assert.match(await page.locator("#caseEvidence").textContent(), /example-/, "Evidence timeline should open");
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator('#globe').scrollIntoViewIfNeeded();
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Mobile page must fit viewport');
+  for (const width of [360, 390, 768, 1024, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator('#globe').scrollIntoViewIfNeeded();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Page must fit ${width}px viewport`);
+    assert.equal(await page.locator('#connect').evaluate(button => {
+      const bounds = button.getBoundingClientRect();
+      return bounds.left >= 0 && bounds.right <= innerWidth;
+    }), true, `Connection button must fit ${width}px viewport`);
+  }
 
   assert.deepEqual(errors, [], "Client-side JavaScript errors");
   console.log(`Browser E2E passed (${url}): rotation, pause, globe, street layer, hunting, filters, evidence and mobile layout.`);
