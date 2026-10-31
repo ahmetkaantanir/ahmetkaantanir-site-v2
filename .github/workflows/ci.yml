@@ -30,5 +30,9 @@ jobs:
           node --check soc.js
           node --check atlas.js
           node --check workspace-embed.js
+          node --check ui.js
+          node --check translations.js
+          node --check geo.js
           node --check functions/_middleware.js
           node --test tests/pages_gate.test.mjs
+          node --test tests/geo.test.mjs

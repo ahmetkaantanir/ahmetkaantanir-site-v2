@@ -9,6 +9,14 @@ on:
       - soc.html
       - index.html
       - workspace-embed.js
+      - ui.js
+      - ui.css
+      - translations.js
+      - geo.js
+      - vendor/world-land.geojson
+      - tests/geo.test.mjs
+      - tests/atlas-browser.mjs
+      - tests/ui-browser.mjs
       - style.css
       - soc.js
       - atlas.js
@@ -33,3 +41,34 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Test live SOC UI in Chromium
         run: node tests/live-browser.mjs
+  local-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start isolated application
+        env:
+          LOG_LAB_DB_PATH: /tmp/log-lab-ui.db
+        run: |
+          python -m flask --app app run --host 127.0.0.1 --port 5056 > /tmp/log-lab-ui.log 2>&1 &
+          for i in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:5056/api/health; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/log-lab-ui.log
+          exit 1
+      - name: Test analysis, reports, languages, themes and responsive layouts
+        run: |
+          node tests/ui-browser.mjs
+          node tests/atlas-browser.mjs

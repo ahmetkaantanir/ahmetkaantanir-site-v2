@@ -6,6 +6,7 @@ workspaceRoot.__socInitialized = true;
 const $ = (s) => workspaceRoot.querySelector(s);
 let apiKey = '';
 let workspaceRevision = 0;
+let atlasController;
 
 let demoMode = false;
 // All data below is synthetic and is only used to preview the user interface.
@@ -38,6 +39,10 @@ const demoEvents = Array.from({ length: 18 }, (_, index) => {
     tags: index >= 15 ? ["ids_alert"] : [],
   };
 });
+// Explicitly synthetic ECS locations illustrate the map-to-evidence workflow.
+for(const [index,source,destination]of [[15,[29,41],[-74,40.7]],[16,[29,41],[139.69,35.68]],[17,[8.68,50.11],[29,41]]]){
+  const event=demoEvents[index];event.raw=JSON.stringify({synthetic:true,message:event.raw,source:{ip:event.ip,geo:{location:source}},destination:{ip:'198.51.100.10',geo:{location:destination}}});
+}
 const demoCases = [
   {
     id: 1001, rule_id: "AUTH-001", severity: "high",
@@ -165,12 +170,34 @@ function renderEvents(items){
     const tr=body.insertRow();
     for(const val of [e.timestamp||'Bilinmiyor',e.source,e.ip||'—',e.action||'—',e.outcome])put(tr.insertCell(),val);
     const btn=element('button','','Kanıt');
-    btn.addEventListener('click',()=>{
-      const pre=$('#evidence');pre.hidden=false;
-      put(pre,JSON.stringify(e,null,2));pre.scrollIntoView({behavior:'smooth',block:'nearest'});
-    });
+    btn.addEventListener('click',()=>showEventEvidence(e));
     tr.insertCell().append(btn);
   }
+}
+function showEventEvidence(event){
+  openWorkspaceSection('explorer');
+  const pre=$('#evidence');pre.hidden=false;put(pre,JSON.stringify(event,null,2));
+  const actions=$('#evidenceActions');actions.hidden=false;actions.replaceChildren(element('strong','','Seçili olay'));
+  const id=element('code','',event.event_id||'—');actions.append(id);
+  for(const [field,label]of [['ip','Aynı IP'],['user','Aynı kullanıcı'],['host','Aynı host']])if(event[field]){
+    const button=element('button','smallbutton',label);
+    button.addEventListener('click',async()=>{
+      clearEventFilters();$('#'+{ip:'fIp',user:'fUser',host:'fHost'}[field]).value=event[field];
+      try{await refreshEvents(true);}catch(error){message(error.message,true);}
+    });actions.append(button);
+  }
+  if(typeof event.timestamp==='string'&&/(Z|[+-]\d{2}:?\d{2})$/.test(event.timestamp)&&Number.isFinite(Date.parse(event.timestamp))){
+    const button=element('button','smallbutton','Çevre olayları ±5 dk');
+    button.addEventListener('click',async()=>{
+      const time=Date.parse(event.timestamp),filters={start:new Date(time-300000).toISOString(),end:new Date(time+300000).toISOString()};
+      clearEventFilters();
+      for(const [id,value]of [['fStart',filters.start],['fEnd',filters.end]]){
+        const date=new Date(value);$('#'+id).step='1';$('#'+id).value=new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,19);
+      }
+      try{await refreshEvents(true,0,filters);message('Bağlam: seçili olayın 5 dakika öncesi ve sonrası, tüm kaynaklar.');}catch(error){message(error.message,true);}
+    });actions.append(button);
+  }
+  pre.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'nearest'});
 }
 let eventOffset=0, eventPageItems=[], eventPageFilters={};
 function eventFilters() {
@@ -181,6 +208,7 @@ function eventFilters() {
 function renderEventPage(data, filters={}) {
   eventPageFilters={...filters};
   eventOffset=data.offset||0;eventPageItems=data.items;renderEvents(data.items);
+  atlasController?.updateEvents(data.items,{synthetic:demoMode,total:data.total,offset:eventOffset});
   put($('#eventCount'),data.items.length ? `${eventOffset+1}–${eventOffset+data.items.length} / ${data.total??data.items.length} olay` : 'Eşleşen olay yok.');
   $('#prevEvents').disabled=eventOffset===0;$('#nextEvents').disabled=!data.has_more;$('#exportEvents').disabled=!data.items.length;
 }
@@ -354,10 +382,19 @@ bindButton('#reloadAudit',refreshAudit);
 $('#caseStatus').addEventListener('change',async()=>{
   try{await refreshCases();}catch(e){message(e.message,true);}
 });
+function openWorkspaceSection(id,scroll=false){
+  const target=$('#'+id);if(!target)return;
+  for(const panel of workspaceRoot.querySelectorAll('.main > section[id]'))panel.hidden=panel!==target;
+  for(const link of workspaceRoot.querySelectorAll('.navitem')){
+    const active=link.getAttribute('href')==='#'+id;link.classList.toggle('active',active);
+    if(active)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current');
+  }
+  if(id==='intelligence')requestAnimationFrame(()=>$('#globe').atlasMap?.resize());
+  if(scroll)target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
+}
 workspaceRoot.querySelectorAll('.navitem').forEach(a=>a.addEventListener('click',(event)=>{
   const target=$(a.getAttribute('href'));
-  if(target){event.preventDefault();target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}
-  workspaceRoot.querySelectorAll('.navitem').forEach(x=>x.classList.remove('active'));a.classList.add('active');
+  if(target){event.preventDefault();openWorkspaceSection(target.id,true);}
 }));
 
 function renderIntelligence(data) {
@@ -376,7 +413,7 @@ function renderIntelligence(data) {
     for (const value of [ip.ip,scopes[ip.scope]||ip.scope,ip.events,ip.alerts,'Bilinmiyor']) put(row.insertCell(),value);
     const button=element('button','smallbutton','Kayıtları aç');button.addEventListener('click',async()=>{
       $('#fIp').value=ip.ip;$('#fSource').value='';$('#fQuery').value='';
-      try {await refreshEvents(true);$('#explorer').scrollIntoView({behavior:'smooth'});}catch(e){message(e.message,true);}
+      try {await refreshEvents(true);openWorkspaceSection('explorer');$('#explorer').scrollIntoView({behavior:'smooth'});}catch(e){message(e.message,true);}
     });row.insertCell().append(button);
   }
 }
@@ -439,14 +476,14 @@ const huntPacks=[
   {title:'Bulut kontrol düzlemi',mitre:'CLOUDTRAIL',fields:{source:'cloudtrail'},text:'AWS JSONL olaylarını kimlik, API aksiyonu, kaynak IP ve UTC zamanıyla araştırın.'},
   {title:'Görünürlük boşlukları',mitre:'DATA QUALITY',fields:{source:'unknown'},text:'Ayrıştırılamayan kayıtları bulun. Eksik parser desteği tespit kapsamını azaltır.'},
 ];
-for(const pack of huntPacks){const card=element('article','hunt-card');card.append(element('span','fieldlabel',pack.mitre),element('h3','',pack.title),element('p','',pack.text));const b=element('button','button ghost','Sorguyu çalıştır →');b.addEventListener('click',async()=>{clearEventFilters();const ids={action:'fAction',outcome:'fOutcome',source:'fSource',q:'fQuery'};for(const [k,v] of Object.entries(pack.fields))$('#'+ids[k]).value=v;try{await refreshEvents(true);$('#explorer').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}catch(e){message(e.message,true);}});card.append(b);$('#huntPacks').append(card);}
+for(const pack of huntPacks){const card=element('article','hunt-card');card.append(element('span','fieldlabel',pack.mitre),element('h3','',pack.title),element('p','',pack.text));const b=element('button','button ghost','Sorguyu çalıştır →');b.addEventListener('click',async()=>{clearEventFilters();const ids={action:'fAction',outcome:'fOutcome',source:'fSource',q:'fQuery'};for(const [k,v] of Object.entries(pack.fields))$('#'+ids[k]).value=v;try{await refreshEvents(true);openWorkspaceSection('explorer');$('#explorer').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}catch(e){message(e.message,true);}});card.append(b);$('#huntPacks').append(card);}
 async function refreshWatchlist(){renderWatchlist(await api('watchlist'));}
 function renderWatchlist(data){
   const body=$('#watchBody');body.replaceChildren();
   $('#watchAdd').disabled=demoMode;
   if(!data.items.length){const c=body.insertRow().insertCell();c.colSpan=5;put(c,'İzleme listesi boş. İncelenecek bir varlık ekleyin.');}
   for(const item of data.items){const row=body.insertRow();for(const value of [item.kind+' / '+item.value,item.label||'—',item.matches,item.last_seen||'Zaman bilinmiyor'])put(row.insertCell(),value);
-    const actions=element('div','case-actions'),view=element('button','smallbutton','Olaylar');view.addEventListener('click',async()=>{clearEventFilters();$('#'+{ip:'fIp',user:'fUser',host:'fHost'}[item.kind]).value=item.value;try{await refreshEvents(true);$('#explorer').scrollIntoView({behavior:'smooth'});}catch(e){message(e.message,true);}});
+    const actions=element('div','case-actions'),view=element('button','smallbutton','Olaylar');view.addEventListener('click',async()=>{clearEventFilters();$('#'+{ip:'fIp',user:'fUser',host:'fHost'}[item.kind]).value=item.value;try{await refreshEvents(true);openWorkspaceSection('explorer');$('#explorer').scrollIntoView({behavior:'smooth'});}catch(e){message(e.message,true);}});
     const remove=element('button','smallbutton','Listeden çıkar');remove.disabled=demoMode;remove.addEventListener('click',async()=>{remove.disabled=true;try{await api('watchlist/'+item.id,{method:'DELETE'});await Promise.all([refreshWatchlist(),refreshAudit()]);message('Varlık izleme listesinden çıkarıldı.');}catch(e){message(e.message,true);remove.disabled=false;}});actions.append(view,remove);row.insertCell().append(actions);
   }
 }
@@ -458,7 +495,7 @@ function renderHealth(data){
   for(const source of data.items){const card=element('article','health-card'),pct=source.events?Math.round(100*(source.events-source.missing_time)/source.events):0;
     card.append(element('span','tag',source.source==='unknown'?'PARSER GEREKLİ':'KAYITLI KAYNAK'),element('h3','',source.source),element('strong','',source.events.toLocaleString('tr-TR')+' olay'));
     const meter=element('div','bar'),fill=element('i');fill.style.width=pct+'%';meter.append(fill);card.append(meter,element('p','',`Zaman kapsaması %${pct} · IP eksik ${source.missing_ip}`),element('small','','Son kaynak olayı: '+(source.last_event||'Bilinmiyor')),element('small','','Son içe alma: '+source.last_ingested));
-    const b=element('button','smallbutton','Kaynağı incele');b.addEventListener('click',async()=>{clearEventFilters();$('#fSource').value=source.source;try{await refreshEvents(true);$('#explorer').scrollIntoView({behavior:'smooth'});}catch(e){message(e.message,true);}});card.append(b);root.append(card);
+    const b=element('button','smallbutton','Kaynağı incele');b.addEventListener('click',async()=>{clearEventFilters();$('#fSource').value=source.source;try{await refreshEvents(true);openWorkspaceSection('explorer');$('#explorer').scrollIntoView({behavior:'smooth'});}catch(e){message(e.message,true);}});card.append(b);root.append(card);
   }
 }
 bindButton('#reloadWatchlist',refreshWatchlist);bindButton('#reloadHealth',refreshHealth);
@@ -476,9 +513,11 @@ function clearWorkspace(){
   for(const id of ['sEvents','sAlerts','sBatches','sCases'])put($('#'+id),'—');
   for(const id of ['sources','recent','quality','ipBody','cases','rulesList','auditList','watchBody','healthCards','eventTrend','severityBreakdown','investigationGuide'])$('#'+id).replaceChildren();
   for(const id of ['evidence','caseEvidence','ingestResult']){$('#'+id).hidden=true;put($('#'+id),'');}
+  $('#evidenceActions').hidden=true;$('#evidenceActions').replaceChildren();
   put($('#intelMode'),'Veri bekleniyor');put($('#connection'),'● Bağlı değil');$('#connection').classList.remove('online');
   $('#watchAdd').disabled=true;renderEventPage({items:[],total:0});
 }
 
-window.initSocAtlas({$, atlasPlaces, put, element});
+openWorkspaceSection('intelligence');
+atlasController=window.initSocAtlas({$, atlasPlaces, put, element,onEvidence:showEventEvidence,onExplore:()=>openWorkspaceSection('explorer',true)});
 };

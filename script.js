@@ -11,6 +11,7 @@ const DATASET_MAP = { apache: 'apache.log', auth: 'auth.log', mixed: 'mixed.log'
 // ── State ────────────────────────────────────────────
 let latestAnalysis = null;
 let latestAnalysisId = null;
+let analysisRevision = 0;
 let trafficChartInst = null;
 let ipChartInst = null;
 
@@ -117,12 +118,13 @@ function bindEvents() {
       }
     });
     els.dropZone.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.logFile.click(); }
+      if (e.target===els.dropZone && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); els.logFile.click(); }
     });
   }
 
   // Tool actions
   els.appendApiData?.addEventListener('click', appendApiPayload);
+  els.rawLogs?.addEventListener('input',()=>{els.logFile.value='';els.fileNameBadge.hidden=true;});
   els.runAnalysis?.addEventListener('click', runAnalysis);
   els.clearLogs?.addEventListener('click', clearAll);
   els.generateDaily?.addEventListener('click', () => generateReport('Daily'));
@@ -170,6 +172,11 @@ function initDragDrop() {
 
 function handleFileSelected(file) {
   if (!file) return;
+  if(!/\.(log|txt|json)$/i.test(file.name)||file.size>5*1024*1024){
+    els.logFile.value='';
+    toast(file.size>5*1024*1024?"Dosya boyutu 5 MB'ı aşamaz.":'Sadece .log, .txt, .json dosyaları desteklenir.','error');
+    return;
+  }
   els.fileNameBadge?.removeAttribute('hidden');
   if (els.fileName) els.fileName.textContent = `${file.name} (${Math.ceil(file.size / 1024)} KB)`;
 }
@@ -183,6 +190,8 @@ async function loadDataset(key) {
     const payload = await parseJsonResponse(res);
     if (!res.ok || !payload) throw new Error(resolveApiError(payload, `Dataset yüklenemedi (HTTP ${res.status})`));
     els.rawLogs.value = payload.content || '';
+    els.logFile.value='';
+    els.fileNameBadge.hidden=true;
     toast(`${payload.name} başarıyla yüklendi.`, 'success');
   } catch {
     toast('Dataset yüklenemedi. Flask sunucusu çalışıyor mu?', 'error');
@@ -196,12 +205,14 @@ function appendApiPayload() {
   const lines = payload.split('\n').map(l => l.trim()).filter(Boolean);
   if (lines.some(l => !safeJsonParse(l))) { toast('Her satır geçerli JSON olmalı.', 'error'); return; }
   els.rawLogs.value = [els.rawLogs.value.trim(), ...lines].filter(Boolean).join('\n');
+  els.logFile.value='';els.fileNameBadge.hidden=true;
   els.apiInput.value = '';
   toast(`${lines.length} API kaydı eklendi.`, 'success');
 }
 
 // ── Analysis ──────────────────────────────────────────
 async function runAnalysis() {
+  const revision=++analysisRevision;
   const hasFile = els.logFile.files?.length > 0;
   const raw = els.rawLogs.value.trim();
   if (!hasFile && !raw) { toast('Analiz için dosya yükleyin veya log girin.', 'warning'); return; }
@@ -223,10 +234,13 @@ async function runAnalysis() {
     }
 
     const payload = await parseJsonResponse(response);
+    if(revision!==analysisRevision)return;
     if (!response.ok || !payload) throw new Error(resolveApiError(payload, friendlyHttpError(response.status, `Analiz başarısız (HTTP ${response.status})`)));
 
     latestAnalysis   = payload.analysis;
     latestAnalysisId = payload.analysis_id;
+    for(const selector of ['#dashboard','#reporting','.hero-stats'])document.querySelector(selector)?.removeAttribute('hidden');
+    els.reportOutput.value='';els.downloadReport.disabled=true;
 
     renderKpis(latestAnalysis);
     renderAlerts(latestAnalysis.alerts || []);
@@ -239,10 +253,12 @@ async function runAnalysis() {
 
     const risk = latestAnalysis.risk || 'low';
     toast(`Analiz tamamlandı — Risk: ${toRiskLabel(risk).toUpperCase()}`, risk === 'high' ? 'error' : risk === 'medium' ? 'warning' : 'success');
+    document.querySelector('#dashboard').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
   } catch (err) {
+    if(revision!==analysisRevision)return;
     toast(err.message || 'Analiz sırasında hata oluştu.', 'error');
   } finally {
-    setLoading(false);
+    if(revision===analysisRevision)setLoading(false);
   }
 }
 
@@ -379,6 +395,13 @@ const CHART_COLORS = {
   text:     '#7a97b8',
 };
 
+function showChartFallback(canvas){
+  canvas.hidden=true;
+  if(canvas.parentElement.querySelector('.chart-fallback'))return;
+  const message=document.createElement('p');message.className='chart-fallback';
+  message.textContent='Grafik yüklenemedi. Sayısal sonuçlar ve rapor kullanılabilir.';
+  canvas.parentElement.append(message);
+}
 function chartDefaults() {
   return {
     responsive: true,
@@ -394,6 +417,7 @@ function chartDefaults() {
 function drawTrafficChart(data) {
   const canvas = els.trafficChart;
   if (!canvas) return;
+  if(typeof Chart==='undefined'){showChartFallback(canvas);return;}
   const safeData = data.length ? data : new Array(24).fill(0);
   const labels   = safeData.map((_, i) => `${String(i).padStart(2,'0')}h`);
   const peakHour = safeData.indexOf(Math.max(...safeData));
@@ -430,6 +454,7 @@ function drawTrafficChart(data) {
 function drawIpChart(topIps) {
   const canvas = els.ipChart;
   if (!canvas) return;
+  if(typeof Chart==='undefined'){showChartFallback(canvas);return;}
   const safe = topIps.length ? topIps.slice(0, 6) : [{ ip: 'no-data', count: 0 }];
   const labels = safe.map(r => shortIp(r.ip));
   const values = safe.map(r => r.count);
@@ -469,6 +494,7 @@ function drawIpChart(topIps) {
 
 // ── Report ────────────────────────────────────────────
 async function generateReport(reportType) {
+  const revision=analysisRevision;
   if (!latestAnalysis && !latestAnalysisId) {
     toast('Önce analiz çalıştırın.', 'warning');
     return;
@@ -483,10 +509,13 @@ async function generateReport(reportType) {
       body: JSON.stringify(body),
     });
     const payload = await parseJsonResponse(res);
+    if(revision!==analysisRevision)return;
     if (!res.ok || !payload) throw new Error(resolveApiError(payload, `Rapor üretilemedi (HTTP ${res.status})`));
     els.reportOutput.value = payload.report || '';
+    els.downloadReport.disabled=!els.reportOutput.value.trim();
     toast(`${reportType} raporu oluşturuldu.`, 'success');
   } catch (err) {
+    if(revision!==analysisRevision)return;
     toast(err.message || 'Rapor oluşturulurken hata oluştu.', 'error');
   }
 }
@@ -532,6 +561,9 @@ function sourceLabel(s) {
 
 // ── Clear All ─────────────────────────────────────────
 function clearAll() {
+  analysisRevision++;setLoading(false);
+  for(const selector of ['#dashboard','#reporting','.hero-stats'])document.querySelector(selector)?.setAttribute('hidden','');
+  els.downloadReport.disabled=true;
   if (els.rawLogs)      els.rawLogs.value = '';
   if (els.apiInput)     els.apiInput.value = '';
   if (els.logFile)      els.logFile.value = '';
@@ -591,9 +623,8 @@ function resolveApiError(payload, fallback) {
 }
 
 function resolveApiBase() {
-  const { protocol, hostname, port } = window.location;
+  const { protocol } = window.location;
   if (protocol === 'file:') return 'http://127.0.0.1:5000';
-  if ((hostname === '127.0.0.1' || hostname === 'localhost') && port && port !== '5000') return 'http://127.0.0.1:5000';
   return '';
 }
 
@@ -678,7 +709,7 @@ function initActiveNavHighlight() {
 // ── Background Particle Canvas ────────────────────────
 function initBgCanvas() {
   const canvas = document.getElementById('bgCanvas');
-  if (!canvas) return;
+  if (!canvas || getComputedStyle(canvas).display==='none' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const ctx = canvas.getContext('2d');
 
   function resize() {

@@ -1,5 +1,26 @@
 # Log Intelligence Lab V5
 
+## Sade arayüz, dil ve tema
+
+Haritanın neden bulunduğu, hangi veriyle çalıştığı, desteklenen koordinat biçimleri ve her aracın analist açısından gerekçesi: [proje kapsamı ve tasarım kararları](./PROJECT_SCOPE.md). Ana sayfadaki **Proje kapsamı ve sık sorulanlar** bölümü aynı sınırları Türkçe/İngilizce açıklar.
+
+Harita artık son yüklenen SOC olay sayfasındaki açık ECS kaynak/hedef koordinatlarından kanıta geçiş sunar. Varsayılan yerel Natural Earth tabanı dış harita döşemesi gerektirmez; uydu ve sokak katmanları internet ister. Koordinat bulunmayan olaylar için yer tahmini yapılmaz. Coğrafi eğitim referansları ayrı moddur.
+
+Ana sayfa log analizi, analiz sonrası sonuç/rapor alanı, SOC Merkezi ve açılır rehberden oluşur. SOC menüsü aynı anda seçilen inceleme aracını gösterir; tehdit avı ve IP/kaynak bağlantıları ilgili olay ekranını açar.
+
+- Üst menüden Türkçe/İngilizce ve açık/koyu tema seçilebilir. Yalnızca bu tercihler tarayıcıda saklanır; loglar ve API anahtarı kaydedilmez.
+- Çeviri arayüz metinlerine uygulanır; ham loglar, API sonuçları, kanıt JSON'u, kullanıcı girdileri ve indirilen rapor içeriği korunur.
+- Harita için internet ve WebGL gerekir. Kullanılamadığında konum kartları ve SOC araçları çalışmaya devam eder. Grafik kütüphanesi yüklenemezse sayısal sonuçlar ve rapor kullanılabilir.
+- Yeni sürümlerde ziyaretçilerin güncel arayüzü alabilmesi için sürümsüz dosyalar önbellekte yeniden doğrulanır.
+
+Yerel Flask sunucusu 5056 portunda çalışırken arayüz testi:
+
+```sh
+node tests/ui-browser.mjs
+```
+
+Başka adres için `TEST_BASE_URL`, kurulu Microsoft Edge ile test için `PLAYWRIGHT_CHANNEL=msedge` kullanılabilir. Testler örnek veri, gerçek analiz, rapor indirme, iki dil, iki tema, altı ekran genişliği, hata durumları ve haritasız görünümü kontrol eder. GitHub Actions'taki `local-ui` işi uygulamayı ayrı bir test veritabanıyla başlatır.
+
 **Güvenlik operasyonları için kanıt temelli log analizi ve Mini-SOC çalışma alanı.**
 
 Python/Flask + SQLite + HTML/CSS/JavaScript. Proje, halka açık **eğitim ve demo** sayfası ile **özel SOC veri alanını** ayrı tutar.

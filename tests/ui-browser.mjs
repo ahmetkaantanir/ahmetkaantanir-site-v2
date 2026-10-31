@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import { chromium, expect } from 'playwright/test';
+
+const base=process.env.TEST_BASE_URL||'http://127.0.0.1:5056';
+const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
+const page=await browser.newPage({viewport:{width:1440,height:1000},locale:'tr-TR',reducedMotion:'reduce'});
+const errors=[];page.on('pageerror',error=>errors.push(error.message));
+try{
+  await page.goto(base,{waitUntil:'domcontentloaded'});
+  await expect(page.locator('#dashboard')).toBeHidden();
+  await expect(page.locator('#reporting')).toBeHidden();
+  assert.equal(await page.locator('.guide-item[open]').count(),0);
+  await page.locator('#languageSelect').selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await expect(page.locator('#tool h2')).toHaveText('Start with a log.');
+  await page.locator('[data-dataset="apache"]').click();
+  await expect(page.locator('#rawLogs')).not.toHaveValue('');
+  const raw=await page.locator('#rawLogs').inputValue();
+  await page.locator('#languageSelect').selectOption('tr');
+  assert.equal(await page.locator('#rawLogs').inputValue(),raw,'Language must preserve log evidence');
+  await page.locator('#runAnalysis').click();
+  await expect(page.locator('#dashboard')).toBeVisible({timeout:20000});
+  await expect(page.locator('#reporting')).toBeVisible();
+  await expect(page.locator('#downloadReport')).toBeDisabled();
+  await page.locator('#generateDaily').click();
+  await expect(page.locator('#reportOutput')).not.toHaveValue('',{timeout:15000});
+  const downloadPromise=page.waitForEvent('download');await page.locator('#downloadReport').click();
+  assert.match((await downloadPromise).suggestedFilename(),/log-report/);
+  await page.locator('#soc-workspace').scrollIntoViewIfNeeded();
+  await expect(page.locator('#socMount')).toHaveAttribute('data-ready','true',{timeout:20000});
+  await page.locator('#demoWorkspace').click();
+  await expect(page.locator('#sEvents')).toHaveText('18');
+  await page.locator('#languageSelect').selectOption('en');
+  await expect(page.locator('#demoWorkspace')).toHaveText('Try sample workspace');
+  await page.locator('#atlasMode').selectOption('reference');
+  await page.locator('#countrySelect').selectOption('jp');await page.locator('#flyStreet').click();
+  await page.waitForFunction(()=>document.querySelector('#socMount').shadowRoot.querySelector('#globe').atlasMap.getZoom()===16);
+  await page.locator('#globeReset').click();
+  await expect(page.locator('.region-tab[data-region="Dünya"]')).toHaveAttribute('aria-pressed','true');
+  for(const theme of ['light','dark']){
+    if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#themeToggle').click();
+    await expect(page.locator('#socMount')).toHaveAttribute('data-theme',theme);
+    for(const width of [360,390,768,1024,1440,1920]){
+      await page.setViewportSize({width,height:900});
+      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))console.log('OVERFLOW',await page.evaluate(()=>[...document.querySelectorAll('*')].filter(e=>e.getBoundingClientRect().right>innerWidth+1&&!e.closest('svg')).slice(0,12).map(e=>({id:e.id,cls:e.className,right:e.getBoundingClientRect().right}))));
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`${theme} ${width}px page overflow`);
+      assert.equal(await page.locator('#themeToggle').evaluate(e=>e.getBoundingClientRect().right<=innerWidth),true,'Theme switch must fit');
+    }
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#menuToggle').click();await expect(page.locator('#menuToggle')).toHaveAttribute('aria-expanded','true');
+  await page.locator('#navLinks a[href="#technical-details"]').click();
+  await expect(page.locator('#menuToggle')).toHaveAttribute('aria-expanded','false');
+  await page.locator('.guide-item:has(#architecture) > summary').click();await expect(page.locator('#architecture')).toBeVisible();
+  await page.reload({waitUntil:'domcontentloaded'});await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await page.locator('#clearLogs').click();await expect(page.locator('#dashboard')).toBeHidden();
+  await page.locator('#logFile').setInputFiles({name:'unsafe.exe',mimeType:'application/octet-stream',buffer:Buffer.from('not a log')});
+  assert.equal(await page.locator('#logFile').evaluate(input=>input.files.length),0,'Unsupported file rejected');
+  await page.route('**/api/analyze',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Service temporarily unavailable'})}));
+  await page.locator('#rawLogs').fill('192.0.2.1 - - [31/Oct/2026:08:00:00 +0000] "GET / HTTP/1.1" 200 10');
+  await page.locator('#runAnalysis').click();
+  await expect(page.locator('.toast').last()).toContainText('Service temporarily unavailable');
+  await expect(page.locator('#runAnalysis')).toBeEnabled();await expect(page.locator('#dashboard')).toBeHidden();
+  await page.unroute('**/api/analyze');
+  let releaseAnalysis;
+  const pendingAnalysis=new Promise(resolve=>{releaseAnalysis=resolve;});
+  await page.route('**/api/analyze',async route=>{
+    await pendingAnalysis;
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({analysis:{total:1,risk:'low'},analysis_id:null})});
+  });
+  await page.locator('#runAnalysis').click();await page.locator('#clearLogs').click();
+  const lateResponse=page.waitForResponse('**/api/analyze');releaseAnalysis();await lateResponse;
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await expect(page.locator('#dashboard')).toBeHidden();await expect(page.locator('#rawLogs')).toHaveValue('');
+  await page.unroute('**/api/analyze');
+  await page.route('**/chart.umd.min.js',route=>route.abort());
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('[data-dataset="apache"]').click();await expect(page.locator('#rawLogs')).not.toHaveValue('');
+  await page.locator('#runAnalysis').click();await expect(page.locator('#dashboard')).toBeVisible();
+  await expect(page.locator('.chart-fallback').first()).toBeVisible();
+  await page.locator('#generateDaily').click();await expect(page.locator('#reportOutput')).not.toHaveValue('');
+  await page.goto(new URL('/soc',base).href,{waitUntil:'domcontentloaded'});
+  await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await expect(page.locator('#demoWorkspace')).toHaveText('Try sample workspace');
+  await page.locator('#demoWorkspace').click();await expect(page.locator('#sEvents')).toHaveText('18');
+  await page.locator('.navitem[href="#explorer"]').click();await expect(page.locator('#explorer')).toBeVisible();await expect(page.locator('#intelligence')).toBeHidden();
+  await page.locator('#fSource').selectOption('windows');await page.locator('#search').click();assert.equal(await page.locator('#eventsBody tr').count(),12);
+  await page.locator('#languageSelect').selectOption('tr');await expect(page.locator('#search')).toHaveText('Filtrele');
+  await page.route('**/vendor/maplibre/maplibre-gl-csp.js',route=>route.abort());
+  await page.goto(new URL('/soc',base).href,{waitUntil:'domcontentloaded'});
+  await expect(page.locator('.map-unavailable')).toBeVisible();await expect(page.locator('#zoomIn')).toBeDisabled();
+  await page.locator('#atlasMode').selectOption('reference');
+  await page.locator('#countrySelect').selectOption('jp');await expect(page.locator('#countryDetail h3')).toHaveText('Japonya');
+  await page.locator('#demoWorkspace').click();await expect(page.locator('#sEvents')).toHaveText('18');
+  assert.deepEqual(errors,[],'No client exceptions');
+  console.log('UI passed: samples, real analysis, report download, language/evidence preservation, globe, themes, six viewports, menu, guide and preference persistence.');
+}catch(error){console.error('CLIENT ERRORS',errors);throw error;}finally{await browser.close();}

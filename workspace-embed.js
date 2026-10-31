@@ -19,11 +19,12 @@
       if(!app||!app.querySelector('#apiKey'))throw new Error('SOC içeriği doğrulanamadı.');
       // The header and public analysis tool remain in the main document.
       app.querySelector('.brand').setAttribute('href','#hero');
-      app.querySelector('.top-actions a')?.remove();
+      app.querySelector('.top-actions a[href="/"]')?.remove();
+      app.querySelector('.preferences')?.remove();
       const title=app.querySelector('h1'),heading=document.createElement('h2');heading.className='workspace-title';heading.textContent=title.textContent;title.replaceWith(heading);
       const shadow=mount.shadowRoot||mount.attachShadow({mode:'open'});shadow.replaceChildren();
       const css=[];
-      for(const href of ['/vendor/maplibre/maplibre-gl.css','/soc.css']){
+      for(const href of ['/vendor/maplibre/maplibre-gl.css','/soc.css','/ui.css']){
         const link=document.createElement('link');link.rel='stylesheet';link.href=href;
         css.push(new Promise((resolve,reject)=>{link.onload=resolve;link.onerror=()=>reject(new Error('Çalışma alanı stilleri yüklenemedi.'));}));shadow.append(link);
       }
@@ -35,7 +36,7 @@
       const content=document.importNode(app,true);content.inert=true;
       shadow.append(scoped,content);
       // Let the atlas keep its location cards and fallback when WebGL assets fail.
-      await Promise.all([...css,script('/vendor/maplibre/maplibre-gl-csp.js').catch(()=>{}),script('/soc.js')]);
+      await Promise.all([...css,script('/vendor/maplibre/maplibre-gl-csp.js').catch(()=>{}),script('/geo.js'),script('/soc.js')]);
       await script('/atlas.js');
       window.initSocWorkspace(shadow);content.inert=false;loaded=true;mount.dataset.ready='true';
       document.dispatchEvent(new CustomEvent('soc-workspace-ready'));

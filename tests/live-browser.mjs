@@ -8,6 +8,7 @@ for (const path of ["/", "/soc"]) {
 const url = new URL(path, base).href;
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await page.addInitScript(() => {
+  localStorage.setItem('lab-language','tr');
   window.socTestRoot = () => document.querySelector('#socMount')?.shadowRoot || document;
 });
 const errors = [];
@@ -61,24 +62,29 @@ try {
   assert.notEqual(rotation.start, rotation.end, 'Globe must rotate');
   assert.equal(rotation.stopped, rotation.afterPause, 'Pause must stop rotation');
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.locator('#atlasMode').selectOption('reference');
   await page.locator('#countrySelect').selectOption('jp');
   await page.locator('#flyStreet').click();
   await page.waitForFunction(() => window.socTestRoot().querySelector('#globe').atlasMap.getZoom() === 16);
   assert.equal(await page.evaluate(() => window.socTestRoot().querySelector('#globe').atlasMap.getLayoutProperty('street', 'visibility')), 'visible');
   assert.match(await page.locator("#message").textContent(), /ÖRNEK MODU/, "Demo must be clearly labeled");
 
+  await page.locator('.navitem[href="#explorer"]').click();
   await page.locator("#fSource").selectOption("windows");
   await page.locator("#search").click();
   assert.equal(await page.locator("#eventsBody tr").count(), 12, "Filter should work");
 
+  await page.locator('.navitem[href="#cases-section"]').click();
   await page.locator("#caseStatus").selectOption("new");
   await page.waitForFunction(() => window.socTestRoot().querySelectorAll("#cases .case").length === 1);
   const timeline = page.locator("#cases .case .case-actions button").nth(1);
   await timeline.click();
   assert.match(await page.locator("#caseEvidence").textContent(), /example-/, "Evidence timeline should open");
 
+  await page.locator('.navitem[href="#intelligence"]').click();
   for (const width of [360, 390, 768, 1024, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     await page.locator('#globe').scrollIntoViewIfNeeded();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Page must fit ${width}px viewport`);
     assert.equal(await page.locator('#connect').evaluate(button => {

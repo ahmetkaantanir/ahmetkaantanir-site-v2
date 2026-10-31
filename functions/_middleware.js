@@ -9,6 +9,8 @@ const PUBLIC_PATHS = new Set([
   "/script.js", "/style.css", "/soc.js", "/soc.css",
   "/atlas.js", "/vendor/maplibre/maplibre-gl-csp.js",
   "/workspace-embed.js",
+  "/ui.js", "/ui.css", "/translations.js",
+  "/geo.js", "/vendor/world-land.geojson",
   "/vendor/maplibre/maplibre-gl-csp-worker.js", "/vendor/maplibre/maplibre-gl.css",
   "/vendor/maplibre/LICENSE.txt",
   "/favicon.ico", "/robots.txt",
@@ -97,6 +99,8 @@ export async function onRequest(context) {
   }
   const response = await context.next();
   const headers = new Headers(response.headers);
+  // Unversioned UI files must revalidate so returning visitors receive new releases.
+  if (!pathname.startsWith('/vendor/')) headers.set('Cache-Control', 'no-cache');
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");

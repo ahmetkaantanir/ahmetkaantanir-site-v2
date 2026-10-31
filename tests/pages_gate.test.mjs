@@ -35,11 +35,12 @@ test("Flask Python source and sensitive paths never reach the static asset serve
 });
 
 test("public SOC interface remains available", async () => {
-  for (const path of ["/", "/soc", "/soc.js", "/soc.css", "/style.css", "/script.js"]) {
+  for (const path of ["/", "/soc", "/soc.js", "/soc.css", "/style.css", "/script.js", "/ui.js", "/ui.css", "/translations.js", "/geo.js"]) {
     const item = sample(path);
     const response = await onRequest(item.context);
     assert.equal(response.status, 200, path);
     assert.equal(item.assetsReached, true, path);
+    assert.equal(response.headers.get('cache-control'), 'no-cache', path);
   }
 });
 
@@ -104,7 +105,7 @@ test("unexpected public write requests are blocked", async () => {
 });
 
 test('map scripts and isolated worker are public, package sources stay private', async () => {
-  for (const pathname of ['/atlas.js','/vendor/maplibre/maplibre-gl-csp.js','/vendor/maplibre/maplibre-gl-csp-worker.js','/vendor/maplibre/maplibre-gl.css']) {
+  for (const pathname of ['/atlas.js','/vendor/world-land.geojson','/vendor/maplibre/maplibre-gl-csp.js','/vendor/maplibre/maplibre-gl-csp-worker.js','/vendor/maplibre/maplibre-gl.css']) {
     const item=sample(pathname),response=await onRequest(item.context);
     assert.equal(response.status,200);
     assert.match(response.headers.get('Content-Security-Policy'),/worker-src 'self'/);
