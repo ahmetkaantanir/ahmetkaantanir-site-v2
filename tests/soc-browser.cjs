@@ -1,0 +1,81 @@
+/* Run against a local Flask instance. playwright must be installed separately. */
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+(async()=>{
+  const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
+  const context=await browser.newContext({viewport:{width:1440,height:1050},reducedMotion:'reduce',acceptDownloads:true});
+  const page=await context.newPage(),errors=[],external=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  page.on('request',request=>{if(/tiles\.maps\.eox\.at|tile\.openstreetmap\.org/.test(request.url()))external.push({url:request.url(),headers:request.headers()});});
+  try{
+    await page.goto((process.env.SOC_TEST_URL||'http://127.0.0.1:5000')+'/soc',{waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>document.querySelector('#globe').atlasMap?.isStyleLoaded());
+    await page.locator('#demoWorkspace').click();
+    await page.waitForFunction(()=>document.querySelector('#sEvents').textContent==='18');
+    assert.equal(await page.locator('.hunt-card').count(),6);
+    assert.equal(await page.locator('.health-card').count(),3);
+    await page.locator('#huntPacks button').first().click();
+    assert.match(await page.locator('#eventCount').innerText(),/12/);
+    assert.equal(await page.locator('#eventsBody tr').count(),12);
+    await page.locator('#watchBody button').first().click();
+    assert.equal(await page.locator('#eventsBody tr').count(),18);
+    await page.locator('#fUser').fill('admin');await page.locator('#search').click();
+    assert.equal(await page.locator('#eventsBody tr').count(),8);
+    const downloadPromise=page.waitForEvent('download');await page.locator('#exportEvents').click();
+    const download=await downloadPromise;assert.match(download.suggestedFilename(),/\.json$/);
+    const stream=await download.createReadStream();let raw='';for await(const chunk of stream)raw+=chunk;
+    const bundle=JSON.parse(raw);assert.equal(bundle.events.length,8);assert.equal(bundle.filters.user,'admin');assert.equal(bundle.synthetic,true);
+    await page.route('**/api/soc/**',route=>route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Unauthorized fixture'})}));
+    await page.locator('#apiKey').fill('invalid-fixture');await page.locator('#connect').click();
+    await page.waitForFunction(()=>document.querySelector('#message').textContent.includes('Unauthorized fixture'));
+    assert.equal(await page.locator('#sEvents').innerText(),'—');assert.equal(await page.locator('.case').count(),0);
+    assert.equal(await page.locator('#exportEvents').isDisabled(),true);assert.doesNotMatch(await page.locator('#eventsBody').innerText(),/192\.0\.2\.25/);
+    await page.unroute('**/api/soc/**');
+    await page.route('**/api/soc/**',async route=>{await new Promise(r=>setTimeout(r,250));await route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Late response fixture'})});});
+    await page.locator('#apiKey').fill('late-response-fixture');
+    await Promise.all([page.waitForRequest(r=>r.url().includes('/api/soc/summary')),page.locator('#connect').click()]);
+    await page.locator('#demoWorkspace').click();await page.waitForFunction(()=>document.querySelector('#sEvents').textContent==='18');
+    await page.waitForTimeout(400);assert.match(await page.locator('#connection').innerText(),/Örnek/);
+    await page.unroute('**/api/soc/**');
+    if(process.env.SOC_TEST_KEY){
+      await page.locator('#apiKey').fill(process.env.SOC_TEST_KEY);await page.locator('#connect').click();
+      await page.waitForFunction(()=>document.querySelector('#connection').textContent.includes('Güvenli'));
+      const origin=process.env.SOC_TEST_URL||'http://127.0.0.1:5000',fixtureHost='qa-host-'+Date.now();
+      const ingest=await page.request.post(origin+'/api/soc/ingest',{headers:{'X-API-Key':process.env.SOC_TEST_KEY},data:{raw_logs:JSON.stringify({timestamp:'2026-10-31T10:00:00Z',EventID:4720,ip:'192.0.2.254',user:'qa-analyst',host:fixtureHost})}});assert.equal(ingest.status(),201);
+      await page.locator('#watchKind').selectOption('host');await page.locator('#watchValue').fill(fixtureHost);await page.locator('#watchLabel').fill('Browser regression test');await page.locator('#watchAdd').click();
+      await page.locator('#watchBody tr').filter({hasText:fixtureHost}).waitFor();
+      assert.ok((await page.locator('#watchBody').innerText()).includes(fixtureHost));
+      const watchRow=page.locator('#watchBody tr').filter({hasText:fixtureHost});await watchRow.locator('button').first().click();await page.waitForFunction(()=>document.querySelector('#eventCount').textContent==='1–1 / 1 olay');assert.equal(await page.locator('#eventsBody tr').count(),1);
+      await page.locator('#reloadHealth').click();await page.locator('.health-card').first().waitFor();assert.equal(await page.locator('.health-card').count(),1);
+      await watchRow.locator('button').last().click();await watchRow.waitFor({state:'detached'});
+    }
+    await page.locator('#countrySelect').selectOption('jp');
+    await page.locator('#flyStreet').click();
+    await page.waitForFunction(()=>document.querySelector('#globe').atlasMap.getZoom()===16);
+    assert.equal(await page.evaluate(()=>document.querySelector('#globe').atlasMap.getLayoutProperty('street','visibility')),'visible');
+    if(process.env.SOC_MAP_ONLINE==='1')await page.waitForFunction(()=>document.querySelector('#globe').atlasMap.areTilesLoaded(),{timeout:20000});
+    await page.locator('#globeReset').click();await page.locator('#mapStyle').selectOption('satellite');
+    await page.waitForFunction(()=>document.querySelector('#globe').atlasMap.getZoom()<2);
+    assert.equal(await page.evaluate(()=>document.querySelector('#globe').atlasMap.getProjection().type),'globe');
+    if(process.env.SOC_MAP_ONLINE==='1')await page.waitForFunction(()=>document.querySelector('#globe').atlasMap.areTilesLoaded(),{timeout:20000});
+    await page.locator('#globe').scrollIntoViewIfNeeded();
+    await page.locator('.globe-stage').screenshot({path:path.join(process.env.TEMP||'/tmp','soc-atlas-desktop.png')});
+    for(const request of external){assert.equal(request.headers['x-api-key'],undefined);assert.equal(request.headers.authorization,undefined);}
+    const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
+    const phone=await mobile.newPage();await phone.goto((process.env.SOC_TEST_URL||'http://127.0.0.1:5000')+'/soc#intelligence');
+    await phone.waitForFunction(()=>document.querySelector('#globe').atlasMap?.isStyleLoaded());
+    assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await phone.locator('#globe').scrollIntoViewIfNeeded();
+    const box=await phone.locator('#globe').boundingBox(),x=box.x+box.width/2,y=box.y+box.height/2,client=await mobile.newCDPSession(phone);
+    const before=await phone.evaluate(()=>document.querySelector('#globe').atlasMap.getCenter().lng);
+    await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});
+    await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+55,y:y+10,id:1}]});
+    await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await phone.waitForTimeout(100);
+    const after=await phone.evaluate(()=>document.querySelector('#globe').atlasMap.getCenter().lng);assert.notEqual(before,after);
+    await client.detach();await mobile.close();
+    assert.deepEqual(errors,[]);
+    console.log(JSON.stringify({hunt_queries:6,source_cards:3,exported_events:8,mobile_touch_rotation:true,external_tile_requests:external.length,page_errors:errors}));
+  }finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

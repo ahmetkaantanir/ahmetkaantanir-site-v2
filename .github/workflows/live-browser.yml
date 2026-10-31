@@ -8,6 +8,10 @@ on:
       - .github/workflows/live-browser.yml
       - soc.html
       - soc.js
+      - atlas.js
+      - soc.css
+      - vendor/maplibre/**
+      - functions/_middleware.js
 permissions:
   contents: read
 

@@ -7,6 +7,9 @@
 const PUBLIC_PATHS = new Set([
   "/", "/index.html", "/soc", "/soc.html",
   "/script.js", "/style.css", "/soc.js", "/soc.css",
+  "/atlas.js", "/vendor/maplibre/maplibre-gl-csp.js",
+  "/vendor/maplibre/maplibre-gl-csp-worker.js", "/vendor/maplibre/maplibre-gl.css",
+  "/vendor/maplibre/LICENSE.txt",
   "/favicon.ico", "/robots.txt",
 ]);
 
@@ -96,6 +99,7 @@ export async function onRequest(context) {
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("Content-Security-Policy", "default-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; script-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://tiles.maps.eox.at https://tile.openstreetmap.org; connect-src 'self' https://tiles.maps.eox.at https://tile.openstreetmap.org; worker-src 'self'; object-src 'none'; base-uri 'self'");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

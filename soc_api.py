@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import json
 import os
 import sqlite3
@@ -41,6 +42,8 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
         CREATE INDEX IF NOT EXISTS ix_soc_time ON soc_events(timestamp);
         CREATE INDEX IF NOT EXISTS ix_soc_ip ON soc_events(ip);
         CREATE INDEX IF NOT EXISTS ix_soc_source ON soc_events(source);
+        CREATE INDEX IF NOT EXISTS ix_soc_user ON soc_events(user_name);
+        CREATE INDEX IF NOT EXISTS ix_soc_host ON soc_events(json_extract(raw_json,'$.host'));
         CREATE TABLE IF NOT EXISTS soc_cases (
             id INTEGER PRIMARY KEY, batch_id INTEGER NOT NULL,
             alert_id TEXT NOT NULL, rule_id TEXT NOT NULL, severity TEXT NOT NULL,
@@ -53,6 +56,10 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
         CREATE TABLE IF NOT EXISTS soc_audit (
             id INTEGER PRIMARY KEY, at TEXT NOT NULL,
             action TEXT NOT NULL, subject TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS soc_watchlist (
+            id INTEGER PRIMARY KEY, kind TEXT NOT NULL, value TEXT NOT NULL,
+            label TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(kind,value)
         );
         """)
     try:
@@ -72,7 +79,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
         key = os.getenv("LOG_LAB_API_KEY", "")
         if not key or len(key) < 24:
             return jsonify({"error": "SOC workspace is disabled until a strong LOG_LAB_API_KEY is configured"}), 503
-        if not hmac.compare_digest(request.headers.get("X-API-Key", ""), key):
+        if not hmac.compare_digest(request.headers.get("X-API-Key", "").encode('utf-8'), key.encode('utf-8')):
             return jsonify({"error": "Unauthorized"}), 401
 
     @bp.get("/rules")
@@ -142,12 +149,40 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
                         "sources": {r["source"]: r["n"] for r in src},
                         "recent": [dict(r) for r in recent]})
 
+    @bp.get("/intelligence")
+    def intelligence():
+        with connection() as db:
+            total = db.execute("SELECT COUNT(*) FROM soc_events").fetchone()[0]
+            missing_time = db.execute("SELECT COUNT(*) FROM soc_events WHERE timestamp IS NULL").fetchone()[0]
+            missing_ip = db.execute("SELECT COUNT(*) FROM soc_events WHERE ip IS NULL").fetchone()[0]
+            unknown = db.execute("SELECT COUNT(*) FROM soc_events WHERE source='unknown'").fetchone()[0]
+            rows = db.execute("SELECT ip, COUNT(*) events FROM soc_events WHERE ip IS NOT NULL GROUP BY ip ORDER BY events DESC, ip LIMIT 50").fetchall()
+            cases = {r['ip']: r['n'] for r in db.execute("SELECT ip, COUNT(*) n FROM soc_cases GROUP BY ip")}
+            severities = {r['severity']: r['n'] for r in db.execute("SELECT severity, COUNT(*) n FROM soc_cases GROUP BY severity")}
+            timeline = [dict(r) for r in db.execute("SELECT substr(timestamp,1,13) hour, COUNT(*) events FROM soc_events WHERE timestamp IS NOT NULL GROUP BY hour ORDER BY hour DESC LIMIT 24")]
+        ips = []
+        for row in rows:
+            address = ipaddress.ip_address(row['ip'])
+            nets = ('192.0.2.0/24', '198.51.100.0/24', '203.0.113.0/24') if address.version == 4 else ('2001:db8::/32',)
+            scope = ('documentation' if any(address in ipaddress.ip_network(n) for n in nets) else
+                     'loopback' if address.is_loopback else 'link_local' if address.is_link_local else
+                     'multicast' if address.is_multicast else 'unspecified' if address.is_unspecified else
+                     'private' if address.is_private else 'public' if address.is_global else 'reserved')
+            ips.append({**dict(row), 'scope': scope, 'version': address.version,
+                        'alerts': cases.get(row['ip'], 0), 'reputation': 'unknown', 'country': None})
+        return jsonify({'total': total, 'missing_time': missing_time, 'missing_ip': missing_ip,
+                        'unparsed': unknown, 'ips': ips, 'ip_limit': 50, 'geoip': 'unavailable',
+                        'severities': severities, 'timeline': list(reversed(timeline))})
+
     @bp.get("/events")
     def events():
         try:
             limit = int(request.args.get("limit", "100"))
+            offset = int(request.args.get("offset", "0"))
         except ValueError:
-            return jsonify({"error": "limit must be a number"}), 400
+            return jsonify({"error": "limit and offset must be numbers"}), 400
+        if offset < 0 or offset > 10000000:
+            return jsonify({"error": "offset out of range"}), 400
         limit = min(max(limit, 1), 500)
         ip = request.args.get("ip", "")[:80]
         source = request.args.get("source", "")[:80]
@@ -160,22 +195,92 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
             if value:
                 clauses.append(field + "=?")
                 params.append(value)
+        for arg, column in (("user", "user_name"), ("host", "json_extract(raw_json,'$.host')"),
+                            ("outcome", "json_extract(raw_json,'$.outcome')"),
+                            ("action", "json_extract(raw_json,'$.action')")):
+            value = request.args.get(arg, "")[:256]
+            if value:
+                clauses.append(column + "=?")
+                params.append(value)
         if query:
             clauses.append("raw_json LIKE ? ESCAPE '\\'")
             params.append("%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
-        if start:
-            clauses.append("timestamp >= ?")
-            params.append(start)
-        if end:
-            clauses.append("timestamp <= ?")
-            params.append(end)
-        statement = "SELECT raw_json FROM soc_events"
-        if clauses:
-            statement += " WHERE " + " AND ".join(clauses)
-        statement += " ORDER BY id DESC LIMIT ?"
+        bounds = []
+        for value, operator in ((start, ">="), (end, "<=")):
+            if value:
+                try:
+                    moment = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                    if moment.tzinfo is None:
+                        raise ValueError()
+                    normalized = moment.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                except (ValueError, OverflowError):
+                    return jsonify({"error": "start/end require ISO timestamps with timezone"}), 400
+                bounds.append(moment)
+                clauses.append("julianday(timestamp) " + operator + " julianday(?)")
+                params.append(normalized)
+        if len(bounds) == 2 and bounds[0] > bounds[1]:
+            return jsonify({"error": "start must not be after end"}), 400
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
         with connection() as db:
-            rows = db.execute(statement, params + [limit]).fetchall()
-        return jsonify({"items": [json.loads(r["raw_json"]) for r in rows]})
+            total = db.execute("SELECT COUNT(*) FROM soc_events" + where, params).fetchone()[0]
+            rows = db.execute("SELECT raw_json FROM soc_events" + where + " ORDER BY id DESC LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
+        return jsonify({"items": [json.loads(r["raw_json"]) for r in rows], "total": total,
+                        "limit": limit, "offset": offset, "has_more": offset + len(rows) < total})
+
+    @bp.get("/source-health")
+    def source_health():
+        with connection() as db:
+            rows = db.execute("""SELECT e.source, COUNT(*) events,
+                SUM(CASE WHEN timestamp IS NULL THEN 1 ELSE 0 END) missing_time,
+                SUM(CASE WHEN ip IS NULL THEN 1 ELSE 0 END) missing_ip,
+                MIN(timestamp) first_event, MAX(timestamp) last_event,
+                MAX(b.created_at) last_ingested
+                FROM soc_events e JOIN soc_batches b ON b.id=e.batch_id
+                GROUP BY e.source ORDER BY events DESC""").fetchall()
+        return jsonify({"items": [dict(r) for r in rows], "heartbeat_available": False})
+
+    @bp.get("/watchlist")
+    def watchlist():
+        with connection() as db:
+            rows = db.execute("SELECT * FROM soc_watchlist ORDER BY id DESC LIMIT 100").fetchall()
+            items = []
+            for row in rows:
+                column = {"ip": "ip", "user": "user_name", "host": "json_extract(raw_json,'$.host')"}[row['kind']]
+                matches = db.execute("SELECT COUNT(*) n, MAX(timestamp) last_seen FROM soc_events WHERE " + column + "=?", (row['value'],)).fetchone()
+                items.append({**dict(row), "matches": matches['n'], "last_seen": matches['last_seen']})
+        return jsonify({"items": items, "limit": 100})
+
+    @bp.post("/watchlist")
+    def add_watchlist():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"error": "JSON object required"}), 400
+        kind, value, label = payload.get('kind'), payload.get('value'), payload.get('label', '')
+        if not isinstance(kind, str) or kind not in {'ip', 'user', 'host'} or not isinstance(value, str) or not value.strip() or len(value) > 256 or not isinstance(label, str) or len(label) > 120:
+            return jsonify({"error": "Valid kind, value (1-256) and label (0-120) required"}), 400
+        value = value.strip()
+        if kind == 'ip':
+            try:
+                value = str(ipaddress.ip_address(value))
+            except ValueError:
+                return jsonify({"error": "Invalid IP address"}), 400
+        with connection() as db:
+            if db.execute("SELECT COUNT(*) FROM soc_watchlist").fetchone()[0] >= 100:
+                return jsonify({"error": "Watchlist limit reached (100)"}), 400
+            cur = db.execute("INSERT OR IGNORE INTO soc_watchlist(kind,value,label,created_at) VALUES (?,?,?,?)", (kind, value, label.strip(), now()))
+            if not cur.rowcount:
+                return jsonify({"error": "Entry already exists"}), 409
+            audit(db, 'watchlist_add', cur.lastrowid)
+            item_id = cur.lastrowid
+        return jsonify({"id": item_id, "kind": kind, "value": value}), 201
+
+    @bp.delete("/watchlist/<int:item_id>")
+    def delete_watchlist(item_id):
+        with connection() as db:
+            if not db.execute("DELETE FROM soc_watchlist WHERE id=?", (item_id,)).rowcount:
+                return jsonify({"error": "Entry not found"}), 404
+            audit(db, 'watchlist_delete', item_id)
+        return jsonify({"deleted": item_id})
 
     @bp.get("/cases")
     def cases():
@@ -198,7 +303,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
         if not isinstance(payload, dict):
             return jsonify({"error": "JSON object required"}), 400
         status, notes = payload.get("status"), payload.get("notes", "")
-        if status not in STATUSES or not isinstance(notes, str) or len(notes) > 4000:
+        if not isinstance(status, str) or status not in STATUSES or not isinstance(notes, str) or len(notes) > 4000:
             return jsonify({"error": "Invalid status or notes (max 4000 characters)"}), 400
         with connection() as db:
             row = db.execute("SELECT id FROM soc_cases WHERE id=?", (case_id,)).fetchone()
@@ -217,7 +322,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
                 return jsonify({"error": "Case not found"}), 404
             ids = set(json.loads(row["evidence_json"]))
             events = [json.loads(r["raw_json"]) for r in db.execute(
-                "SELECT raw_json FROM soc_events WHERE batch_id=? ORDER BY timestamp", (row["batch_id"],))]
+                "SELECT raw_json FROM soc_events WHERE batch_id=? ORDER BY julianday(timestamp), id", (row["batch_id"],))]
         return jsonify({"case_id": case_id, "items": [e for e in events if e["event_id"] in ids]})
 
     @bp.get("/cases/<int:case_id>/explain")

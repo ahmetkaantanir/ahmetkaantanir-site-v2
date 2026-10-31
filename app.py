@@ -154,7 +154,10 @@ def create_app() -> Flask:
     @app.route('/<path:filename>')
     def public_asset(filename: str):
         # Do not expose source code, SQLite databases, datasets or environment files.
-        if filename not in {'script.js', 'style.css', 'soc.js', 'soc.css'}:
+        if filename not in {'script.js', 'style.css', 'soc.js', 'soc.css', 'atlas.js',
+                            'vendor/maplibre/maplibre-gl-csp.js',
+                            'vendor/maplibre/maplibre-gl-csp-worker.js',
+                            'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre/LICENSE.txt'}:
             return _json_error('Not found', 404)
         return send_from_directory(BASE_DIR, filename)
 
@@ -181,8 +184,9 @@ def create_app() -> Flask:
             "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
             "font-src 'self' https://fonts.gstatic.com; "
             "script-src 'self' https://cdn.jsdelivr.net; "
-            "img-src 'self' data:; "
-            "connect-src 'self';"
+            "img-src 'self' data: blob: https://tiles.maps.eox.at https://tile.openstreetmap.org; "
+            "connect-src 'self' https://tiles.maps.eox.at https://tile.openstreetmap.org; "
+            "worker-src 'self'; object-src 'none'; base-uri 'self';"
         )
         return resp
 

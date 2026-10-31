@@ -130,3 +130,9 @@ CI: [GitHub Actions](../../actions). Ayrıntılı sonraki modüller için [upgra
 ## Proje yaklaşımı
 
 Bu proje siber güvenlik ve adli bilişim öğrencileri için özgürce incelenebilir bir analiz laboratuvarı olarak tasarlanmıştır; güvenlik ürününe ait kurumsal garantiler sunmaz.
+
+## Yeni atlas ve inceleme modülleri
+
+SOC alanında gerçek MapLibre uydu küresi ve OpenStreetMap sokak katmanı, altı hazır hunting sorgusu, kalıcı IP/kullanıcı/host izleme listesi, ayrıntılı arama ve sayfalama, mevcut sayfayı kanıt JSON'u olarak indirme ve kaynak görünürlüğü bulunur. CloudTrail JSONL normalleştirme ve üç yeni Windows/Sysmon göstergesi eklendi. Ayrıntılı destek/sınır ve kaynaklar: [araştırma ve uygulama raporu](./LOG_COVERAGE_REVIEW.md).
+
+Harita internet ve WebGL gerektirir. Uydu mozaiği EOX Sentinel-2 cloudless 2020, sokak katmanı OpenStreetMap'tir. Google Maps/Street View değildir; yakınlaştırma görüntüyü canlı yapmaz. Harita sağlayıcıları ziyaretçi IP'sini ve istenen coğrafi alanı görebilir; loglar ve SOC API anahtarı harita isteklerine eklenmez. Kütüphane/lisans [vendor/maplibre](./vendor/maplibre) altında sabit 5.24.0 sürümüyle yerel sunulur.

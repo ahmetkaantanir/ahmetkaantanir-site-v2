@@ -182,3 +182,137 @@ def test_audit_actions(client):
 def test_rules_api(client):
     r = client.get("/api/soc/rules",headers=headers())
     assert r.status_code == 200 and len(r.json["rules"]) == len(RULES)
+
+def test_intelligence_access_and_quality(client):
+    assert client.get('/api/soc/intelligence').status_code == 401
+    raw = '\n'.join([event(0), 'unrecognized entry', json.dumps({'ip': '2606:4700:4700::1111'})])
+    assert client.post('/api/soc/ingest', json={'raw_logs': raw}, headers=headers()).status_code == 201
+    data = client.get('/api/soc/intelligence', headers=headers()).json
+    assert data['total'] == 3
+    assert data['missing_time'] == 2 and data['missing_ip'] == 1 and data['unparsed'] == 1
+    ips = {i['ip']: i for i in data['ips']}
+    assert ips['192.0.2.10']['scope'] == 'documentation'
+    assert ips['2606:4700:4700::1111']['version'] == 6
+    assert all(i['country'] is None and i['reputation'] == 'unknown' for i in data['ips'])
+
+def test_intelligence_hourly_counts_and_severity(client):
+    raw = '\n'.join([event(0, 1102), event(1), event(3600), json.dumps({'ip': '127.0.0.1'})])
+    client.post('/api/soc/ingest', json={'raw_logs': raw}, headers=headers())
+    data = client.get('/api/soc/intelligence', headers=headers()).json
+    assert data['timeline'] == [{'hour': '2026-10-31T10', 'events': 2}, {'hour': '2026-10-31T11', 'events': 1}]
+    assert data['severities'] == {'critical': 1}
+    assert data['missing_time'] == 1
+    assert next(i for i in data['ips'] if i['ip'] == '127.0.0.1')['scope'] == 'loopback'
+
+@pytest.mark.parametrize('code,rule', [(4720,'WIN-002'),(4698,'WIN-003')])
+def test_account_and_task_indicators(code, rule):
+    result=inspect(event(0,code))
+    assert any(a['rule_id']==rule and a['event_ids'] for a in result['alerts'])
+
+
+def test_encoded_powershell_is_process_scoped():
+    command='powershell.exe -NoProfile -EncodedCommand QQBBAEEA'
+    suspicious=json.dumps({'EventID':1,'provider':'Microsoft-Windows-Sysmon','CommandLine':command})
+    assert any(a['rule_id']=='PROC-001' for a in inspect(suspicious)['alerts'])
+    assert not any(a['rule_id']=='PROC-001' for a in inspect(json.dumps({'message':command}))['alerts'])
+    assert not any(a['rule_id']=='PROC-001' for a in inspect(json.dumps({'EventID':4688,'CommandLine':'powershell.exe Get-Date'}))['alerts'])
+
+
+def test_encoded_web_payload():
+    raw='192.0.2.5 - - [31/Oct/2026:10:00:00 +0000] "GET /?q=UNION%2520SELECT HTTP/1.1" 403 32'
+    assert any(a['rule_id']=='WEB-001' for a in inspect(raw)['alerts'])
+
+
+def test_cloudtrail_console_login_normalization():
+    raw=json.dumps({'eventSource':'signin.amazonaws.com','eventName':'ConsoleLogin',
+                    'eventTime':'2026-10-31T09:00:00Z','sourceIPAddress':'2001:4860:4860::8888',
+                    'userIdentity':{'type':'IAMUser','userName':'analyst'},'responseElements':{'ConsoleLogin':'Failure'}})
+    e=normalize(raw,1)
+    assert e['source']=='cloudtrail' and e['action']=='login' and e['outcome']=='failure'
+    assert e['user']=='analyst' and e['timestamp']=='2026-10-31T09:00:00Z'
+
+
+def test_watchlist_crud_matching_and_auth(client):
+    assert client.get('/api/soc/watchlist').status_code==401
+    assert client.post('/api/soc/watchlist',json={'kind':'ip','value':'127.0.0.1'}).status_code==401
+    client.post('/api/soc/ingest',headers=headers(),json={'raw_logs':event(0)})
+    r=client.post('/api/soc/watchlist',headers=headers(),json={'kind':'ip','value':'192.0.2.10','label':'review'})
+    assert r.status_code==201
+    item_id=r.json['id']
+    assert client.post('/api/soc/watchlist',headers=headers(),json={'kind':'ip','value':'192.0.2.10'}).status_code==409
+    assert client.post('/api/soc/watchlist',headers=headers(),json={'kind':'ip','value':'invalid'}).status_code==400
+    assert client.post('/api/soc/watchlist',headers=headers(),json={'kind':'sql','value':'x'}).status_code==400
+    items=client.get('/api/soc/watchlist',headers=headers()).json['items']
+    assert len(items)==1 and items[0]['matches']==1
+    assert client.delete(f'/api/soc/watchlist/{item_id}').status_code==401
+    assert client.delete(f'/api/soc/watchlist/{item_id}',headers=headers()).status_code==200
+    assert client.get('/api/soc/watchlist',headers=headers()).json['items']==[]
+    actions=[x['action'] for x in client.get('/api/soc/audit',headers=headers()).json['items']]
+    assert 'watchlist_add' in actions and 'watchlist_delete' in actions
+
+
+def test_hunting_filters_pagination_and_dates(client):
+    rows=[event(i, user='alice' if i%2 else 'bob') for i in range(7)]
+    client.post('/api/soc/ingest',headers=headers(),json={'raw_logs':'\n'.join(rows)})
+    r=client.get('/api/soc/events?user=alice&action=login&outcome=failure&limit=2',headers=headers()).json
+    assert r['total']==3 and len(r['items'])==2 and r['has_more']
+    r2=client.get('/api/soc/events?user=alice&limit=2&offset=2',headers=headers()).json
+    assert len(r2['items'])==1 and not r2['has_more']
+    assert not set(e['event_id'] for e in r['items']) & set(e['event_id'] for e in r2['items'])
+    r=client.get('/api/soc/events',query_string={'start':'2026-10-31T13:00:02+03:00','end':'2026-10-31T10:00:04Z'},headers=headers()).json
+    assert r['total']==3
+    for query in ('start=invalid','start=2026-10-31T10:00:00','offset=-1','offset=bad','start=2026-11-01T00:00:00Z&end=2026-10-01T00:00:00Z'):
+        assert client.get('/api/soc/events?'+query,headers=headers()).status_code==400
+    assert client.get('/api/soc/events',query_string={'user':"alice' OR 1=1--"},headers=headers()).json['total']==0
+
+
+def test_source_visibility_is_not_heartbeat(client):
+    assert client.get('/api/soc/source-health').status_code==401
+    client.post('/api/soc/ingest',headers=headers(),json={'raw_logs':event(0)+'\nunknown line'})
+    r=client.get('/api/soc/source-health',headers=headers())
+    assert r.status_code==200 and r.json['heartbeat_available'] is False
+    sources={x['source']:x for x in r.json['items']}
+    assert sources['windows']['events']==1 and sources['windows']['missing_time']==0
+    assert sources['unknown']['missing_time']==1 and sources['unknown']['missing_ip']==1
+    assert sources['windows']['last_ingested']
+
+
+def test_map_assets_and_csp_are_scoped(client):
+    for path in ('/atlas.js','/vendor/maplibre/maplibre-gl-csp.js','/vendor/maplibre/maplibre-gl-csp-worker.js','/vendor/maplibre/maplibre-gl.css'):
+        assert client.get(path).status_code==200
+    assert client.get('/vendor/maplibre/package.json').status_code==404
+    csp=client.get('/soc').headers['Content-Security-Policy']
+    assert "worker-src 'self'" in csp
+    assert 'https://tile.openstreetmap.org' in csp and 'https://tiles.maps.eox.at' in csp
+    assert 'unsafe-eval' not in csp
+
+@pytest.mark.parametrize('bad_kind',[[],{},None,True,3])
+def test_watchlist_bad_kind_is_client_error(client,bad_kind):
+    response=client.post('/api/soc/watchlist',headers=headers(),json={'kind':bad_kind,'value':'x'})
+    assert response.status_code==400
+
+@pytest.mark.parametrize('bad_status',[[],{},None,True,3])
+def test_case_bad_status_is_client_error(client,bad_status):
+    response=client.patch('/api/soc/cases/999',headers=headers(),json={'status':bad_status})
+    assert response.status_code==400
+
+
+def test_non_ascii_invalid_api_key_is_unauthorized(client):
+    assert client.get('/api/soc/summary',headers={'X-API-Key':'invalid-\u011f-key'}).status_code==401
+
+
+def test_fractional_seconds_do_not_reorder_login_evidence():
+    records=[{'timestamp':'2026-10-31T10:00:00Z','EventID':4624,'ip':'192.0.2.10','user':'admin'}]
+    records += [{'timestamp':f'2026-10-31T10:00:00.{i}Z','EventID':4625,'ip':'192.0.2.10','user':'admin'} for i in (1,2,3)]
+    assert not any(a['rule_id']=='AUTH-003' for a in inspect('\n'.join(json.dumps(x) for x in records))['alerts'])
+
+
+def test_fractional_timeline_stays_chronological(client):
+    records=[{'timestamp':'2026-10-31T10:00:00Z','EventID':4625,'ip':'192.0.2.10','user':'admin'}]
+    records += [{'timestamp':f'2026-10-31T10:00:00.{i}Z','EventID':4625,'ip':'192.0.2.10','user':'admin'} for i in (1,2)]
+    records.append({'timestamp':'2026-10-31T10:00:00.3Z','EventID':4624,'ip':'192.0.2.10','user':'admin'})
+    client.post('/api/soc/ingest',headers=headers(),json={'raw_logs':'\n'.join(json.dumps(x) for x in reversed(records))})
+    cases=client.get('/api/soc/cases',headers=headers()).json['items']
+    case=next(c for c in cases if c['rule_id']=='AUTH-003')
+    events=client.get(f"/api/soc/cases/{case['id']}/timeline",headers=headers()).json['items']
+    assert [e['timestamp'] for e in events]==['2026-10-31T10:00:00Z','2026-10-31T10:00:00.100000Z','2026-10-31T10:00:00.200000Z','2026-10-31T10:00:00.300000Z']

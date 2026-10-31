@@ -102,3 +102,15 @@ test("unexpected public write requests are blocked", async () => {
   const response = await onRequest(item.context);
   assert.equal(response.status, 404);
 });
+
+test('map scripts and isolated worker are public, package sources stay private', async () => {
+  for (const pathname of ['/atlas.js','/vendor/maplibre/maplibre-gl-csp.js','/vendor/maplibre/maplibre-gl-csp-worker.js','/vendor/maplibre/maplibre-gl.css']) {
+    const item=sample(pathname),response=await onRequest(item.context);
+    assert.equal(response.status,200);
+    assert.match(response.headers.get('Content-Security-Policy'),/worker-src 'self'/);
+    assert.doesNotMatch(response.headers.get('Content-Security-Policy'),/unsafe-eval/);
+  }
+  for (const pathname of ['/vendor/maplibre/package.json','/vendor/maplibre/src/index.ts','/vendor/maplibre/maplibre-gl-csp.js.map']) {
+    assert.equal((await onRequest(sample(pathname).context)).status,404);
+  }
+});

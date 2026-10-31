@@ -11,6 +11,7 @@ import re
 from collections import Counter, defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import unquote
 
 MAX_LINES = 10000
 MAX_LINE = 16384
@@ -23,6 +24,9 @@ RULES = {
     "NET-001": {"name": "Possible port scanning", "severity": "medium", "mitre": "T1046"},
     "WIN-001": {"name": "Windows audit log cleared", "severity": "critical", "mitre": "T1070.001"},
     "IDS-001": {"name": "IDS rule alert", "severity": "medium", "mitre": None},
+    "PROC-001": {"name": "Encoded PowerShell command indicator", "severity": "high", "mitre": "T1059.001"},
+    "WIN-002": {"name": "Windows user account created", "severity": "medium", "mitre": "T1136.001"},
+    "WIN-003": {"name": "Windows scheduled task created", "severity": "medium", "mitre": "T1053.005"},
 }
 WEB_PATTERNS = {
     "SQLi": re.compile(r"\bunion\s+select\b|\binformation_schema\b|\bsleep\s*\(", re.I),
@@ -86,6 +90,12 @@ def normalize(line: str, number: int) -> dict[str, Any]:
             outcome=_field(item.get("outcome") or event_obj.get("outcome")) or "unknown")
         if isinstance(item.get("host"), dict):
             e["host"] = _field(item["host"].get("name"))
+        if isinstance(item.get("user"), dict):
+            e["user"] = _field(item["user"].get("name"))
+        process = item.get('process') if isinstance(item.get('process'), dict) else {}
+        command = item.get('CommandLine') or item.get('command_line') or process.get('command_line')
+        if isinstance(command, str):
+            e['command_line'] = command[:4096]
         try:
             v = int(item.get("status"))
             if 100 <= v <= 599:
@@ -102,6 +112,10 @@ def normalize(line: str, number: int) -> dict[str, Any]:
                 e.update(outcome="success", action="login")
             if code == "1102":
                 e["tags"].append("audit_clear")
+            if code == '4720':
+                e['tags'].append('account_created')
+            if code == '4698':
+                e['tags'].append('task_created')
         kind = item.get("event_type")
         if kind:
             e["source"] = "suricata"
@@ -113,6 +127,18 @@ def normalize(line: str, number: int) -> dict[str, Any]:
         provider = str(item.get("provider", item.get("ProviderName", ""))).lower()
         if "sysmon" in provider:
             e["source"] = "sysmon"
+        if e['source'] in ('windows', 'sysmon') and isinstance(command, str):
+            if re.search(r'\b(?:powershell|pwsh)(?:\.exe)?\b', command, re.I) and re.search(r'(?:^|\s)-(?:e|ec|en|enc|enco|encod|encode|encodedcommand)\s+\S+', command, re.I):
+                e['tags'].append('encoded_powershell')
+        if item.get('eventSource') and item.get('eventName') and isinstance(item.get('userIdentity'), dict):
+            identity = item['userIdentity']
+            e.update(source='cloudtrail', ip=_ip(item.get('sourceIPAddress')),
+                     timestamp=_timestamp(item.get('eventTime')), action=_field(item.get('eventName')),
+                     user=_field(identity.get('userName') or identity.get('arn')),
+                     outcome='failure' if item.get('errorCode') else 'unknown')
+            response = item.get('responseElements')
+            if e['action'] == 'ConsoleLogin' and isinstance(response, dict):
+                e.update(action='login', outcome='success' if response.get('ConsoleLogin') == 'Success' else 'failure' if response.get('ConsoleLogin') == 'Failure' else 'unknown')
         if e["status"] in (401, 403) and e["outcome"] == "unknown":
             e["outcome"] = "failure"
         port = item.get("dest_port", item.get("port"))
@@ -147,7 +173,7 @@ def normalize(line: str, number: int) -> dict[str, Any]:
                 e["timestamp"] = e["timestamp"] or _timestamp(m[1])
     if e["source"] in ("web", "json", "suricata"):
         for key, pattern in WEB_PATTERNS.items():
-            if pattern.search(line):
+            if pattern.search(unquote(unquote(line))):
                 e["tags"].append(key)
     return e
 
@@ -183,12 +209,18 @@ def inspect(raw_text: str) -> dict[str, Any]:
             alerts.append(_alert("WIN-001", [e], "Windows audit trail cleared (event 1102)."))
         if "ids_alert" in e["tags"]:
             alerts.append(_alert("IDS-001", [e], "Suricata IDS alert; inspect original signature and flow."))
+        if 'encoded_powershell' in e['tags']:
+            alerts.append(_alert('PROC-001', [e], 'Encoded PowerShell command line observed; legitimate automation is possible. Review parent process and script content.'))
+        if 'account_created' in e['tags']:
+            alerts.append(_alert('WIN-002', [e], 'Account creation (4720); verify change approval and the creating account.'))
+        if 'task_created' in e['tags']:
+            alerts.append(_alert('WIN-003', [e], 'Scheduled task creation (4698); review task XML, executable and author.'))
     by_ip: dict[str, list[dict]] = defaultdict(list)
     for e in events:
         if e["ip"] and e["timestamp"]:
             by_ip[e["ip"]].append(e)
     for ip, records in by_ip.items():
-        records.sort(key=lambda r: r["timestamp"])
+        records.sort(key=lambda r: datetime.fromisoformat(r["timestamp"].replace('Z', '+00:00')))
         window: deque[dict] = deque()
         emitted: set[str] = set()
         for e in records:
