@@ -1,11 +1,14 @@
 services:
   - type: web
     name: log-intelligence-lab
-    env: python
+    runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --workers 2 --threads 2 --timeout 120 --bind 0.0.0.0:$PORT app:app
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/health
     envVars:
       - key: FLASK_DEBUG
-        value: false
-    healthCheckPath: /api/health
+        value: "false"
+      - key: LOG_LAB_API_KEY
+        generateValue: true
