@@ -43,12 +43,23 @@ test("public SOC interface remains available", async () => {
   }
 });
 
-test("Cloudflare must not return HTML for unconfigured backend API", async () => {
+test("default backend routes to verified Render API instead of SPA fallback", async () => {
   const item = sample("/api/health");
-  const response = await onRequest(item.context);
-  assert.equal(response.status, 503);
-  assert.match(response.headers.get("content-type"), /application\/json/);
-  assert.equal(item.assetsReached, false);
+  const prior = globalThis.fetch;
+  globalThis.fetch = async (request) => {
+    assert.equal(request.url, "https://ahmetkaantanir-site-v2.onrender.com/api/health");
+    return new Response('{"status":"ok"}', {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    const response = await onRequest(item.context);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /application\/json/);
+    assert.equal(item.assetsReached, false);
+  } finally {
+    globalThis.fetch = prior;
+  }
 });
 
 test("insecure and recursive API origin configuration is blocked", async () => {
