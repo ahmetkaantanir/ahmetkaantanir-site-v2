@@ -228,14 +228,27 @@ function renderRules(items){
     root.append(article);
   }
 }
-async function refreshAudit(){
-  const data=await api('audit');const root=$('#auditList');root.replaceChildren();
-  if(!data.items.length){put(root,'İşlem kaydı henüz bulunmuyor.');return;}
-  for(const item of data.items){
-    const row=element('div','audit-item');row.append(element('strong','',item.action+' · '+item.subject),
-      element('span','',item.at));root.append(row);
+function renderAudit(items) {
+  const root = $('#auditList');
+  root.replaceChildren();
+  if (!items.length) {
+    put(root, 'İşlem kaydı henüz bulunmuyor.');
+    return;
+  }
+  for (const item of items) {
+    const row = element('div', 'audit-item');
+    row.append(
+      element('strong', '', item.action + ' · ' + item.subject),
+      element('span', '', item.at)
+    );
+    root.append(row);
   }
 }
+async function refreshAudit() {
+  const data = await api('audit');
+  renderAudit(data.items);
+}
+
 async function refreshAll(){
   try{
     const [summary, events, cases, rules, audit]=await Promise.all([
