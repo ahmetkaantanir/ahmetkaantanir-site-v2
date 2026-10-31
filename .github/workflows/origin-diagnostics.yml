@@ -1,0 +1,24 @@
+name: Inspect Public Origin Routing
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect response metadata without printing body
+        shell: bash
+        run: |
+          set -euo pipefail
+          for P in / /soc /soc.js /app.py /soc_api.py /api/health /api/soc/summary; do
+            echo "PATH $P"
+            CODE=$(curl --silent --show-error --max-time 25 -D /tmp/h -o /tmp/b -w '%{http_code}' "https://dev.ahmetkaantanir.com$P") || CODE="000"
+            echo "HTTP $CODE; body_size=$(wc -c < /tmp/b); sha256=$(sha256sum /tmp/b | cut -d' ' -f1)"
+            grep -iE '^(server:|content-type:|content-length:|cf-cache-status:|x-powered-by:|location:|x-render|x-served-by:|cache-control:)' /tmp/h || true
+            if grep -q '^from flask import' /tmp/b; then echo "PYTHON_SOURCE_EXPOSED=yes"; else echo "PYTHON_SOURCE_EXPOSED=no"; fi
+            echo '---'
+          done
