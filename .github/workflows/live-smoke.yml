@@ -27,42 +27,28 @@ jobs:
               exit 1
             fi
             if [ "$PATHNAME" = "/soc" ] && ! grep -qi 'SOC Workspace' /tmp/live-response; then
-              echo "::error::New SOC V5 page marker missing"
+              echo "::error::SOC V5 marker missing"
               exit 1
             fi
           done
           for PATHNAME in /app.py /log_engine.py /soc_engine.py /soc_api.py /analysis.db /.env /datasets/mixed.log; do
             CODE=$(get_status "$PATHNAME") || CODE="000"
             echo "PRIVATE $PATHNAME HTTP $CODE"
-            if [ "$CODE" = "200" ]; then
-              TYPE=$(file --brief --mime-type /tmp/live-response || true)
-              printf 'BODY MIME: %s, BYTES: %s, HTML: %s, PYTHON_SOURCE: %s\n' "$TYPE" "$(wc -c < /tmp/live-response)" "$(grep -Eiq '<!doctype html|<html' /tmp/live-response && echo yes || echo no)" "$(grep -Eiq '^from flask import|^import json|^import os
-              echo "::error::Sensitive $PATHNAME not safely blocked (HTTP $CODE)"
-              exit 1
-            fi
-          done
-          CODE=$(get_status "/api/soc/summary") || CODE="000"
-          echo "PROTECTED SOC API HTTP $CODE (401 means configured, 503 means missing secret)"
-          if [ "$CODE" = "503" ]; then
-            echo "::warning::LOG_LAB_API_KEY has not been configured on the live Render service: SOC private API is disabled"
-          elif [ "$CODE" != "401" ]; then
-            echo "::error::SOC API should be 401 or 503 without valid API key, found $CODE"
-            exit 1
-          fi
-          echo "Live smoke and asset/security checks completed."
- /tmp/live-response && echo yes || echo no)"
-            fi
             if [ "$CODE" != "404" ]; then
+              TYPE=$(file --brief --mime-type /tmp/live-response || true)
+              if grep -Eiq '<!doctype html|<html' /tmp/live-response; then HTML=yes; else HTML=no; fi
+              if grep -Eiq '^from flask import|^import json|^import os$' /tmp/live-response; then PYTHON_SOURCE=yes; else PYTHON_SOURCE=no; fi
+              echo "DIAGNOSTIC content_type=$TYPE bytes=$(wc -c < /tmp/live-response) html=$HTML python_source=$PYTHON_SOURCE"
               echo "::error::Sensitive $PATHNAME not safely blocked (HTTP $CODE)"
               exit 1
             fi
           done
           CODE=$(get_status "/api/soc/summary") || CODE="000"
-          echo "PROTECTED SOC API HTTP $CODE (401 means configured, 503 means missing secret)"
+          echo "PROTECTED SOC API HTTP $CODE (401 configured; 503 missing secret)"
           if [ "$CODE" = "503" ]; then
-            echo "::warning::LOG_LAB_API_KEY has not been configured on the live Render service: SOC private API is disabled"
+            echo "::warning::LOG_LAB_API_KEY is missing on the live service"
           elif [ "$CODE" != "401" ]; then
-            echo "::error::SOC API should be 401 or 503 without valid API key, found $CODE"
+            echo "::error::Unexpected public SOC API status $CODE"
             exit 1
           fi
-          echo "Live smoke and asset/security checks completed."
+          echo "Live smoke and security checks completed."
