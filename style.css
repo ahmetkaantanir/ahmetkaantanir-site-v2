@@ -1053,3 +1053,6 @@ textarea::placeholder { color: var(--muted); opacity: 0.6; }
   .brand { font-size: 0.85rem; }
   h1 { font-size: 1.6rem; }
 }
+
+/* Unified SOC section, in the same page as the public log analysis tool. */
+.unified-workspace{scroll-margin-top:90px;padding-top:30px;padding-bottom:45px}.unified-workspace .section-head{margin-bottom:24px}.unified-workspace .section-lead{max-width:760px;color:#8ca2ba;line-height:1.8}#socMount{min-height:400px;width:100%;min-width:0}.workspace-loading{min-height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:30px;background:radial-gradient(ellipse at center,#13313f,#0a1522 70%);border:1px solid #294052;border-radius:18px}.workspace-loading strong{font-size:28px}.workspace-loading p{color:#91a8bc;font-size:14px}.workspace-loading button{max-width:100%}

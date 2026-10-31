@@ -1,13 +1,16 @@
 'use strict';
 /* MapLibre 5.24.0: local CSP build, real raster globe, no SOC data in map requests. */
-(() => {
+window.initSocAtlas = function({$, atlasPlaces, put, element}) {
   const root = $('#globe'), motion = matchMedia('(prefers-reduced-motion: reduce)');
-  let map, selected = atlasPlaces[0], paused = motion.matches, frame = 0, last = 0, layer = '', tileErrors = 0, visible = false;
+  let map, selected = atlasPlaces[0], paused = motion.matches, frame = 0, last = 0, layer = '', tileErrors = 0, visible = false, ready = false;
+  let refreshSelection = () => {};
   const status = $('#mapStatus'), select = $('#countrySelect');
   const codes = {de:'eu-central-1',gb:'eu-west-2',fr:'eu-west-3',us:'us-east-1',br:'sa-east-1',jp:'ap-northeast-1',sg:'ap-southeast-1',in:'ap-south-1',kr:'ap-northeast-2',au:'ap-southeast-2'};
   const reducedDuration = () => motion.matches ? 0 : 1400;
   function showCountry(place, fly = false) {
+    if (!place) return;
     selected = place; select.value = place.id;
+    refreshSelection();
     const detail = $('#countryDetail'); detail.replaceChildren();
     detail.append(element('span','fieldlabel',place.region.toLocaleUpperCase('tr')+' / COĞRAFİ REFERANS'),element('h3','',place.country),element('strong','',place.city),element('p','coordinates',`${place.lat.toFixed(2)}° / ${place.lon.toFixed(2)}°`),element('p','',place.guide));
     if (codes[place.id]) {
@@ -16,13 +19,15 @@
     }
     put($('#mapLocation'),place.city+' · '+place.country);
     $('#externalMap').href=`https://www.openstreetmap.org/#map=14/${place.lat}/${place.lon}`;
-    if(fly && map) {setPaused(true);map.flyTo({center:[place.lon,place.lat],zoom:4.5,duration:reducedDuration()});}
+    if(fly && ready) {setPaused(true);map.flyTo({center:[place.lon,place.lat],zoom:4.5,duration:reducedDuration()});}
   }
   for (const place of atlasPlaces) {const o=element('option','',place.country+' · '+place.city);o.value=place.id;select.append(o);}
   select.addEventListener('change',()=>showCountry(atlasPlaces.find(p=>p.id===select.value),true));showCountry(selected);
   function setPaused(value) {
     paused=value;put($('#globeToggle'),paused?'Otomatik dönüşü başlat':'Otomatik dönüşü durdur');$('#globeToggle').setAttribute('aria-pressed',String(paused));
-    if(!paused&&!frame&&!document.hidden&&visible)frame=requestAnimationFrame(rotate);
+    if (frame) cancelAnimationFrame(frame);
+    frame=0;last=performance.now();
+    if(!paused&&ready&&!document.hidden&&visible)frame=requestAnimationFrame(rotate);
   }
   function rotate(t) {frame=0;if(document.hidden||!visible||paused||!map)return;if(map.getZoom()<3&&!map.isMoving()){const center=map.getCenter();map.jumpTo({center:[center.lng+Math.min(t-last,50)*.001,center.lat]});}last=t;if(!paused)frame=requestAnimationFrame(rotate);}
   const regions={Dünya:[20,20,1.3],Avrupa:[15,48,3],Asya:[105,30,2.5],Amerika:[-85,25,2.2],Okyanusya:[140,-25,3]};
@@ -59,11 +64,14 @@
       root.dataset.longitude=center.lng.toFixed(3);root.dataset.latitude=center.lat.toFixed(3);root.dataset.zoom=zoom.toFixed(2);
       for(const {place,marker} of markers){const pin=marker.getElement();pin.classList.toggle('city-scale',zoom>9);pin.classList.toggle('atlas-pin-selected',place.id===selected.id);pin.classList.toggle('atlas-pin-secondary',zoom<3&&!['tr','de','us','br','sg','jp','au'].includes(place.id)&&place.id!==selected.id);}
     }
-    map.on('load',()=>{put(status,'UYDU HARİTASI · GERÇEK COĞRAFYA');updateView();setPaused(paused);});
+    refreshSelection=updateView;
+    map.on('load',()=>{ready=true;put(status,'UYDU HARİTASI · GERÇEK COĞRAFYA');updateView();setPaused(paused);});
     map.on('move',updateView);
-    map.on('idle',()=>{if(tileErrors===0)put(status,layer==='street'?'SOKAK KATMANI · OPENSTREETMAP':'UYDU MOZAIĞI · SENTINEL-2 / EOX');});
-    map.on('error',e=>{tileErrors++;put(status,'Harita verisi yüklenemedi. Ağ bağlantısını kontrol edin veya katman değiştirin.');status.classList.add('map-error');});
+    map.on('idle',()=>{if(tileErrors===0){status.classList.remove('map-error');put(status,layer==='street'?'SOKAK KATMANI · OPENSTREETMAP':'UYDU MOZAIĞI · SENTINEL-2 / EOX');}});
+    map.on('error',e=>{if(e.sourceId&&layer&&e.sourceId!==layer)return;tileErrors++;put(status,'Harita verisi yüklenemedi. Ağ bağlantısını kontrol edin veya katman değiştirin.');status.classList.add('map-error');});
     map.on('sourcedata',e=>{if(e.isSourceLoaded&&e.sourceId===layer){tileErrors=0;status.classList.remove('map-error');}});
+    // Native MapLibre controls stop propagation; also pause on direct camera gestures.
+    for(const type of ['dragstart','zoomstart','rotatestart','pitchstart'])map.on(type,e=>{if(e.originalEvent)setPaused(true);});
     for(const type of ['mousedown','touchstart','wheel','keydown'])root.addEventListener(type,()=>setPaused(true),{passive:true});
     $('#mapStyle').addEventListener('change',()=>{tileErrors=0;status.classList.remove('map-error');updateView();});
     $('#zoomIn').addEventListener('click',()=>{setPaused(true);map.zoomIn({duration:motion.matches?0:300});});
@@ -72,12 +80,13 @@
     $('#flyCity').addEventListener('click',()=>{setPaused(true);map.flyTo({center:[selected.lon,selected.lat],zoom:11,duration:reducedDuration()});});
     $('#flyStreet').addEventListener('click',()=>{setPaused(true);$('#mapStyle').value='street';updateView();map.flyTo({center:[selected.lon,selected.lat],zoom:16,duration:reducedDuration()});});
     $('#globeToggle').addEventListener('click',()=>{if(paused&&map.getZoom()>=3)map.jumpTo({zoom:1.3,pitch:0});setPaused(!paused);});
-    motion.addEventListener('change',e=>setPaused(e.matches));document.addEventListener('visibilitychange',()=>{last=performance.now();if(!document.hidden)setPaused(paused);});
+    motion.addEventListener('change',e=>setPaused(e.matches));document.addEventListener('visibilitychange',()=>setPaused(paused));
     new ResizeObserver(()=>map.resize()).observe(root);
-    new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;if(visible)setPaused(paused);},{threshold:.05}).observe(root);
+    new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;setPaused(paused);},{threshold:.05}).observe(root);
   } catch(error) {
     put(status,'Bu cihazda WebGL haritası açılamadı. Konum kartları ve dış harita bağlantısı kullanılabilir.');status.classList.add('map-error');
     root.append(element('p','map-unavailable','Gerçek harita için WebGL destekli bir tarayıcı ve internet bağlantısı gerekir.'));
     for(const id of ['zoomIn','zoomOut','globeToggle','globeReset','mapStyle','flyCity','flyStreet'])$('#'+id).disabled=true;
   }
-})();
+};
+if(document.querySelector('#apiKey'))window.initSocWorkspace(document);

@@ -8,6 +8,7 @@ const PUBLIC_PATHS = new Set([
   "/", "/index.html", "/soc", "/soc.html",
   "/script.js", "/style.css", "/soc.js", "/soc.css",
   "/atlas.js", "/vendor/maplibre/maplibre-gl-csp.js",
+  "/workspace-embed.js",
   "/vendor/maplibre/maplibre-gl-csp-worker.js", "/vendor/maplibre/maplibre-gl.css",
   "/vendor/maplibre/LICENSE.txt",
   "/favicon.ico", "/robots.txt",

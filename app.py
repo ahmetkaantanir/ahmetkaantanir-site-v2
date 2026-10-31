@@ -157,7 +157,7 @@ def create_app() -> Flask:
         if filename not in {'script.js', 'style.css', 'soc.js', 'soc.css', 'atlas.js',
                             'vendor/maplibre/maplibre-gl-csp.js',
                             'vendor/maplibre/maplibre-gl-csp-worker.js',
-                            'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre/LICENSE.txt'}:
+                            'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre/LICENSE.txt', 'workspace-embed.js'}:
             return _json_error('Not found', 404)
         return send_from_directory(BASE_DIR, filename)
 
@@ -211,6 +211,7 @@ app.register_blueprint(create_soc_blueprint(DB_PATH))
 
 
 @app.route('/soc')
+@app.route('/soc.html')
 def soc_workspace() -> Response:
     return send_from_directory(BASE_DIR, 'soc.html')
 

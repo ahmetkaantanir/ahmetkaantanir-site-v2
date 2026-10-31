@@ -1,6 +1,9 @@
 'use strict';
 /* SOC Workspace v5 — safe text rendering and authenticated requests; no localStorage. */
-const $ = (s) => document.querySelector(s);
+window.initSocWorkspace = function(workspaceRoot = document) {
+if (workspaceRoot.__socInitialized) return;
+workspaceRoot.__socInitialized = true;
+const $ = (s) => workspaceRoot.querySelector(s);
 let apiKey = '';
 let workspaceRevision = 0;
 
@@ -351,8 +354,10 @@ bindButton('#reloadAudit',refreshAudit);
 $('#caseStatus').addEventListener('change',async()=>{
   try{await refreshCases();}catch(e){message(e.message,true);}
 });
-document.querySelectorAll('.navitem').forEach(a=>a.addEventListener('click',()=>{
-  document.querySelectorAll('.navitem').forEach(x=>x.classList.remove('active'));a.classList.add('active');
+workspaceRoot.querySelectorAll('.navitem').forEach(a=>a.addEventListener('click',(event)=>{
+  const target=$(a.getAttribute('href'));
+  if(target){event.preventDefault();target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}
+  workspaceRoot.querySelectorAll('.navitem').forEach(x=>x.classList.remove('active'));a.classList.add('active');
 }));
 
 function renderIntelligence(data) {
@@ -474,3 +479,6 @@ function clearWorkspace(){
   put($('#intelMode'),'Veri bekleniyor');put($('#connection'),'● Bağlı değil');$('#connection').classList.remove('online');
   $('#watchAdd').disabled=true;renderEventPage({items:[],total:0});
 }
+
+window.initSocAtlas({$, atlasPlaces, put, element});
+};

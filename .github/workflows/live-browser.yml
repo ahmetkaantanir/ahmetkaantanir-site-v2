@@ -7,6 +7,9 @@ on:
       - tests/live-browser.mjs
       - .github/workflows/live-browser.yml
       - soc.html
+      - index.html
+      - workspace-embed.js
+      - style.css
       - soc.js
       - atlas.js
       - soc.css
