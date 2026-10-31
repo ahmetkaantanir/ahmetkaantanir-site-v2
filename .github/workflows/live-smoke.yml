@@ -9,46 +9,60 @@ permissions:
 jobs:
   live:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
-      - name: Verify live content and public security controls
+      - name: Verify live SOC, Flask API, and security controls
         shell: bash
         run: |
           set -euo pipefail
           HOST="https://dev.ahmetkaantanir.com"
           get_status() {
-            curl --silent --show-error --location --retry 1 --max-time 25 --output /tmp/live-response --write-out '%{http_code}' "$HOST$1"
+            curl --silent --show-error --location --retry 1 --max-time 40 --output /tmp/live-response --write-out '%{http_code}' "$HOST$1"
           }
-          for PATHNAME in / /soc /api/health /soc.css /soc.js; do
+          for PATHNAME in / /soc /soc.css /soc.js /style.css /script.js; do
             CODE=$(get_status "$PATHNAME") || CODE="000"
             echo "PUBLIC $PATHNAME HTTP $CODE"
             if [ "$CODE" != "200" ]; then
-              echo "::error::Live $PATHNAME unavailable HTTP $CODE"
+              echo "::error::Public $PATHNAME missing HTTP $CODE"
               exit 1
             fi
             if [ "$PATHNAME" = "/soc" ] && ! grep -qi 'SOC Workspace' /tmp/live-response; then
-              echo "::error::SOC V5 marker missing"
+              echo "::error::V5 SOC page marker missing"
               exit 1
             fi
           done
-          for PATHNAME in /app.py /log_engine.py /soc_engine.py /soc_api.py /analysis.db /.env /datasets/mixed.log; do
+          for PATHNAME in /app.py /log_engine.py /soc_engine.py /soc_api.py /analysis.db /.env /datasets/mixed.log /tests/test_soc_platform.py; do
             CODE=$(get_status "$PATHNAME") || CODE="000"
             echo "PRIVATE $PATHNAME HTTP $CODE"
             if [ "$CODE" != "404" ]; then
-              TYPE=$(file --brief --mime-type /tmp/live-response || true)
-              if grep -Eiq '<!doctype html|<html' /tmp/live-response; then HTML=yes; else HTML=no; fi
-              if grep -Eiq '^from flask import|^import json|^import os$' /tmp/live-response; then PYTHON_SOURCE=yes; else PYTHON_SOURCE=no; fi
-              echo "DIAGNOSTIC content_type=$TYPE bytes=$(wc -c < /tmp/live-response) html=$HTML python_source=$PYTHON_SOURCE"
-              echo "::error::Sensitive $PATHNAME not safely blocked (HTTP $CODE)"
+              echo "::error::Private $PATHNAME is not blocked HTTP $CODE"
               exit 1
             fi
           done
-          CODE=$(get_status "/api/soc/summary") || CODE="000"
-          echo "PROTECTED SOC API HTTP $CODE (401 configured; 503 missing secret)"
-          if [ "$CODE" = "503" ]; then
-            echo "::warning::LOG_LAB_API_KEY is missing on the live service"
-          elif [ "$CODE" != "401" ]; then
-            echo "::error::Unexpected public SOC API status $CODE"
+          CODE=$(get_status "/api/health") || CODE="000"
+          echo "FLASK /api/health HTTP $CODE"
+          if [ "$CODE" != "200" ] || ! grep -q '"service"' /tmp/live-response; then
+            echo "::error::Flask backend is not responding with JSON health"
             exit 1
           fi
-          echo "Live smoke and security checks completed."
+          CODE=$(get_status "/api/datasets") || CODE="000"
+          echo "FLASK /api/datasets HTTP $CODE"
+          if [ "$CODE" != "200" ] || ! grep -q '"datasets"' /tmp/live-response; then
+            echo "::error::Dataset endpoint not healthy"
+            exit 1
+          fi
+          CODE=$(curl --silent --show-error --max-time 40 -X POST -H 'Content-Type: application/json' --data '{"raw_logs":"192.0.2.25 - - [31/Oct/2026:10:00:00 +0000] \"GET / HTTP/1.1\" 200 123"}' --output /tmp/live-response --write-out '%{http_code}' "$HOST/api/analyze") || CODE="000"
+          echo "FLASK /api/analyze HTTP $CODE"
+          if [ "$CODE" != "200" ] || ! grep -q '"analysis"' /tmp/live-response; then
+            echo "::error::Public demonstration log analysis failed"
+            exit 1
+          fi
+          CODE=$(get_status "/api/soc/summary") || CODE="000"
+          echo "PRIVATE SOC API without key HTTP $CODE"
+          if [ "$CODE" = "503" ]; then
+            echo "::warning::Set LOG_LAB_API_KEY in Render to enable authenticated SOC"
+          elif [ "$CODE" != "401" ]; then
+            echo "::error::Private SOC API must require authorization; got $CODE"
+            exit 1
+          fi
+          echo "Live static assets, Python backend, log parser and security checks passed."
