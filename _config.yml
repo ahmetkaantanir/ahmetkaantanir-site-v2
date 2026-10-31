@@ -1,0 +1,29 @@
+﻿# GitHub Pages is a secondary static host; Cloudflare Pages + Render serve the SOC.
+# Never copy backend code or training/private data into the Jekyll output.
+theme: null
+include:
+  - vendor
+exclude:
+  # A legacy extensionless file conflicts with the theme's generated assets folder.
+  - assets
+  - app.py
+  - log_engine.py
+  - soc_engine.py
+  - soc_api.py
+  - requirements.txt
+  - render.yaml
+  - datasets
+  - tests
+  - functions
+  - private
+  - __pycache__
+  - .venv
+  - analysis.db
+  - soc.db
+  - README.md
+  - LOG_COVERAGE_REVIEW.md
+  - SECURITY_UPGRADE_ROADMAP.md
+  - vendor/maplibre/README.md
+  - _redirects
+  - Gemfile
+  - Gemfile.lock
