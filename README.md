@@ -72,6 +72,32 @@ curl -X POST http://localhost:5000/api/soc/ingest \
 
 Sistem olayları parse eder, varsa tespitleri kanıt kayıtlarıyla birlikte kaydeder ve \`batch_id\`, \`sha256\`, \`risk\`, \`alert_count\` döndürür.
 
+## Mevcut canlı yayın: Cloudflare Pages + Render
+
+**Ana adres:** https://dev.ahmetkaantanir.com
+
+- `/` herkese açık analiz arayüzünü, `/soc` ise gelişmiş SOC çalışma alanını gösterir.
+- `/soc` sayfasında **Örnek SOC görünümü** butonu 18 **sentetik** olay ve iki örnek vaka gösterir. Gerçek verilerle karıştırılmamalıdır.
+- Cloudflare Pages üzerindeki `functions/_middleware.js`, yalnızca izin verilmiş statik dosyaları sunar ve `/api/*` isteklerini doğrulanmış HTTPS Flask servisine yönlendirir: `https://ahmetkaantanir-site-v2.onrender.com`.
+- Kod, konfigürasyon, örnek dosyalar ve veritabanları statik web ortamında **404** döner. `_redirects` ayrıca ikinci koruma katmanıdır.
+- `/api/health`, `/api/datasets` ve halka açık `/api/analyze` gerçek backend'e bağlıdır. [Canlı smoke testi](./.github/workflows/live-smoke.yml) her `main` değişikliğinde bunları kontrol eder.
+- Render üzerinde **`LOG_LAB_API_KEY` ortam değişkeni ayarlanmadan** özel SOC API'si **503** döner. Bu, güvenlik amacıyla yapılmıştır; sıradan kullanıcı bu durumu API anahtarı olmadan aşamaz.
+
+### Özel SOC'u etkinleştirme (Render)
+
+1. Render Dashboard → mevcut `ahmetkaantanir-site-v2` Web Service → **Environment**.
+2. **Add Environment Variable**: adını `LOG_LAB_API_KEY` girin; değeri en az 24 karakterlik rastgele bir gizli anahtar olsun. Render'ın rastgele oluşturma özelliğini veya kendi güvenli üretecinizi kullanın.
+3. **Save, Deploy/Restart**; ayarın çalışan servise uygulandığını doğrulayın.
+4. `https://dev.ahmetkaantanir.com/soc` açın, SOC çalışma alanına gizli anahtarı girin. **Anahtarı GitHub'a veya herkese açık sohbete koymayın.**
+5. Analiz geçmişinin kalıcı olması için Render üzerinde kalıcı disk veya yönetilen veritabanı gereklidir. `LOG_LAB_DB_PATH` kalıcı disk yolunu gösterir; ücretsiz geçici dosya sistemine gerçek hassas log yüklemeyin.
+
+### Cloudflare güvenlik ayarları
+
+Pages Functions bu projede statik dosyaların yanlışlıkla yayınlanmasını önlüyor. Cloudflare Dashboard → **Workers & Pages → proje → Settings → Runtime → Fail closed** seçeneğini etkinleştirin. Functions kotası dolduğunda statik dosyaların korumasız sunulmasına izin vermeyin.
+
+**Kalıcı öneri:** Cloudflare Pages'in build output dizinini yalnızca kamuya açık HTML/CSS/JS dosyaları bulunan ayrı bir `public` dizini yapın; Python/backend dosyalarını çıktıya hiç dahil etmeyin. Böylece middleware başarısız olsa dahi kaynak kodları statik web paketinde bulunmaz. Bu ayarın mevcut Cloudflare projesinin Build Settings bölümünden ayrıca yapılması gerekir.
+
+
 ## Render / canlı yayın
 
 Bu repo bir \`render.yaml\` tanımlar. Render Blueprint üzerinden oluşturulurken \`LOG_LAB_API_KEY\` otomatik rastgele üretilebilir. **Mevcut manuel Render servislerinde Blueprint değişikliğinin otomatik olarak uygulanacağı varsayılmamalıdır:** servis Dashboard → Environment bölümünden \`LOG_LAB_API_KEY\` ayarlanmalıdır.
