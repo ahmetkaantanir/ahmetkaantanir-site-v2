@@ -23,7 +23,7 @@ jobs:
           LOG_LAB_API_KEY: ci-secret-long-enough-for-automated-tests
         run: |
           python -m compileall -q app.py log_engine.py soc_api.py soc_engine.py
-          pytest -q
+          python -m pytest -q
       - name: Check JavaScript syntax
         run: |
           node --check script.js
