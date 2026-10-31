@@ -1,0 +1,21 @@
+# Defense-in-depth: block private repository files on Cloudflare Pages.
+# Cloudflare Pages will issue a redirect even if the asset exists.
+# Source code and runtime data must NEVER be published as static frontend assets.
+/app.py / 302
+/log_engine.py / 302
+/soc_engine.py / 302
+/soc_api.py / 302
+/analysis.db / 302
+/soc.db / 302
+/.env / 302
+/.env.* / 302
+/requirements.txt / 302
+/render.yaml / 302
+/README.md / 302
+/SECURITY_UPGRADE_ROADMAP.md / 302
+/tests/* / 302
+/datasets/* / 302
+/.github/* / 302
+/functions/* / 302
+/private/* / 302
+/__pycache__/* / 302
