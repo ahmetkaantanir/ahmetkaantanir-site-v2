@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
+import { chromium, expect } from "playwright/test";
 
 const base = process.env.TEST_BASE_URL || "https://dev.ahmetkaantanir.com";
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
+try {
 for (const path of ["/", "/soc"]) {
 const url = new URL(path, base).href;
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -10,6 +11,12 @@ await page.addInitScript(() => {
   window.socTestRoot = () => document.querySelector('#socMount')?.shadowRoot || document;
 });
 const errors = [];
+if (process.env.TEST_SCRIPT_DELAY_MS) {
+  await page.route('**/soc.js', async route => {
+    await new Promise(resolve => setTimeout(resolve, Number(process.env.TEST_SCRIPT_DELAY_MS)));
+    await route.continue();
+  });
+}
 
 page.on("pageerror", err => errors.push(err.message));
 try {
@@ -20,12 +27,17 @@ try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
     if (path === '/') await page.locator('#soc-workspace').scrollIntoViewIfNeeded();
     await page.locator('#mapStyle').waitFor({ timeout: 20000 }).catch(() => {});
-    if (await page.locator("#mapStyle").count() && await page.locator("#watchlist").count()) { found = true; break; }
+    const ready = await page.waitForFunction(() => {
+      const mount = document.querySelector('#socMount');
+      if (mount) return mount.dataset.ready === 'true';
+      return document.__socInitialized === true && !!document.querySelector('#huntPacks .hunt-card');
+    }, null, { timeout: 20000 }).then(() => true, () => false);
+    if (ready && await page.locator("#mapStyle").count() && await page.locator("#watchlist").count()) { found = true; break; }
     await new Promise(resolve => setTimeout(resolve, 5000));
   }
   assert.equal(found, true, "Atlas and hunting release has not reached the live site");
   await page.locator("#demoWorkspace").click();
-  await page.waitForFunction(() => window.socTestRoot().querySelector("#sEvents")?.textContent === "18", null, { timeout: 15000 });
+  await expect(page.locator('#sEvents')).toHaveText('18', { timeout: 15000 });
   assert.equal(await page.locator("#eventsBody tr").count(), 18, "Synthetic demo event rows");
   assert.equal(await page.locator("#cases .case").count(), 2, "Synthetic demo case cards");
   assert.equal(await page.locator("#huntPacks .hunt-card").count(), 6);
@@ -77,8 +89,13 @@ try {
 
   assert.deepEqual(errors, [], "Client-side JavaScript errors");
   console.log(`Browser E2E passed (${url}): rotation, pause, globe, street layer, hunting, filters, evidence and mobile layout.`);
+} catch (error) {
+  console.error(JSON.stringify({ url, errors, message: await page.locator('#message').textContent().catch(() => null), events: await page.locator('#sEvents').textContent().catch(() => null) }));
+  throw error;
 } finally {
   await page.close();
 }
 }
-await browser.close();
+} finally {
+  await browser.close();
+}

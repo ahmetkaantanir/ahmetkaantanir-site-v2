@@ -19,6 +19,9 @@ analysis.db
 # Pytest cache
 .pytest_cache/
 
+# Browser test dependencies
+node_modules/
+
 # IDE
 .vscode/
 .idea/
