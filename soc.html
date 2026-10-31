@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Log Intelligence Lab SOC — güvenli log inceleme, korelasyon ve vaka yönetimi">
+  <meta name="theme-color" content="#080f1a">
+  <title>SOC Workspace · Log Intelligence Lab</title>
+  <link rel="stylesheet" href="/soc.css">
+  <script src="/soc.js" defer></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a href="/" class="brand"><span class="brand-mark">◇</span><span>LOG INTELLIGENCE <strong>LAB</strong><small>SECURITY OPERATIONS</small></span></a>
+    <div class="navhead">WORKSPACE</div>
+    <nav aria-label="SOC çalışma alanı">
+      <a href="#overview" class="navitem active"><span>▦</span> Genel Bakış</a>
+      <a href="#ingest" class="navitem"><span>⇪</span> Log Ingestion</a>
+      <a href="#explorer" class="navitem"><span>⌕</span> Log Explorer</a>
+      <a href="#cases-section" class="navitem"><span>⚑</span> Incident Center</a>
+      <a href="#rules-section" class="navitem"><span>⬡</span> Detection Rules</a>
+      <a href="#audit-section" class="navitem"><span>◷</span> Audit Trail</a>
+    </nav>
+    <div class="side-foot"><div class="statusdot"></div> Private workspace <small>V5 · evidence-first analysis</small><p>Bir alarm kesin saldırı kanıtı değildir. Her bulguyu loglar ve sistem bağlamıyla doğrulayın.</p></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div><span class="crumb">SECURITY / <b>OPERATIONS CENTER</b></span><h1>Security Intelligence</h1><p>Gerçek olayları görün. Tehditleri ilişkilendirin. Kanıtla karar verin.</p></div><div class="top-actions"><span id="connection" class="connection">● Bağlı değil</span><a href="/" class="button ghost">← Ana platform</a></div></header>
+    <section class="credential" aria-label="Güvenli bağlantı">
+      <div><strong><span class="lock">▣</span> SOC API erişimi</strong><p>Bu özel çalışma alanı güçlü bir sunucu API anahtarı gerektirir. Anahtar tarayıcıda kaydedilmez.</p></div>
+      <label class="visually-hidden" for="apiKey">SOC API anahtarı</label>
+      <input id="apiKey" type="password" autocomplete="off" placeholder="LOG_LAB_API_KEY">
+      <button id="connect" class="button primary">Güvenli bağlan</button>
+    </section>
+    <div id="message" class="message" role="status" aria-live="polite">Başlamak için API anahtarınızı girin. Hassas gerçek verileri yalnızca izinli ortamlarda analiz edin.</div>
+    <section id="overview" aria-label="Özet">
+      <div class="sectionlabel"><span>01 / OVERVIEW</span><span>Analysis snapshot · UTC</span></div>
+      <div class="metrics">
+        <article class="metric"><span>TOPLAM OLAY</span><strong id="sEvents">—</strong><small>Normalleştirilmiş kayıt</small><i>▥</i></article>
+        <article class="metric"><span>GÜVENLİK ALARMI</span><strong id="sAlerts">—</strong><small>Kural eşleşmesi</small><i class="red">⚑</i></article>
+        <article class="metric"><span>ANALİZ PAKETİ</span><strong id="sBatches">—</strong><small>SHA-256 ile korunan kaynak</small><i class="blue">◈</i></article>
+        <article class="metric"><span>AÇIK VAKA</span><strong id="sCases">—</strong><small>İnceleme bekliyor</small><i class="orange">◇</i></article>
+      </div>
+      <div class="dashboard-grid">
+        <div class="panel"><div class="panelhead"><div><span>DATA DISTRIBUTION</span><h2>Kaynak dağılımı</h2></div><span class="tag">Normalized</span></div><div id="sources" class="sources empty">Henüz işlenmiş veri bulunmuyor.</div></div>
+        <div class="panel"><div class="panelhead"><div><span>RECENT ACTIVITY</span><h2>Son analizler</h2></div><span class="tag">SHA-256</span></div><div id="recent" class="activity empty">Henüz analiz bulunmuyor.</div></div>
+      </div>
+    </section>
+    <section id="ingest" class="panel spacious">
+      <div class="panelhead"><div><span>02 / INGESTION</span><h2>Logları güvenle incele</h2><p>Web · Linux Auth · Firewall · Windows Event · Sysmon · Suricata EVE · DNS JSON</p></div><span class="tag">UTF-8 · 5 MB · 10K satır</span></div>
+      <label class="fieldlabel" for="raw">HAM LOG GİRDİSİ</label>
+      <textarea id="raw" spellcheck="false" placeholder='{"timestamp":"2026-10-31T08:30:00Z","EventID":4625,"ip":"192.0.2.10","user":"analyst"}'></textarea>
+      <div class="toolrow"><label class="filewrap">📄 <span>Dosya seç (.log, .txt, .json)</span><input type="file" id="file" accept=".log,.txt,.json"></label><button id="demo" class="button ghost">Örnek senaryo</button><button id="analyze" class="button primary">Analiz başlat →</button></div>
+      <pre id="ingestResult" class="output" hidden></pre>
+      <p class="disclaimer">Orijinal kayıt SHA-256 özetiyle tanımlanır. Zaman dilimi bilinmeyen olaylar zaman korelasyonuna alınmaz. Dış tehdit istihbaratı veya yapay zekâ API'sine veri gönderilmez.</p>
+    </section>
+    <section id="explorer" class="panel spacious">
+      <div class="panelhead"><div><span>03 / INVESTIGATION</span><h2>Log Explorer</h2><p>Olayları kaynağa, IP'ye veya ham içeriğe göre araştırın.</p></div><button id="reloadEvents" class="button ghost">↻ Yenile</button></div>
+      <div class="filters"><input id="fIp" placeholder="Kaynak IP"><select id="fSource"><option value="">Tüm kaynaklar</option><option>web</option><option>auth</option><option>firewall</option><option>windows</option><option>sysmon</option><option>suricata</option><option>dns</option><option>json</option><option>unknown</option></select><input id="fQuery" placeholder="Log içeriğinde ara"><button id="search" class="button primary">Filtrele</button></div>
+      <div class="tablewrap"><table><thead><tr><th>ZAMAN (UTC)</th><th>KAYNAK</th><th>IP</th><th>AKSİYON</th><th>SONUÇ</th><th>İNCELE</th></tr></thead><tbody id="eventsBody"><tr><td colspan="6">Bağlandıktan sonra olaylar burada görüntülenir.</td></tr></tbody></table></div><pre id="evidence" class="output evidence" hidden></pre>
+    </section>
+    <section id="cases-section" class="panel spacious"><div class="panelhead"><div><span>04 / INCIDENT RESPONSE</span><h2>Incident Center</h2><p>Alarm kanıtları, vaka durumları ve analist notları.</p></div><button id="reloadCases" class="button ghost">↻ Yenile</button></div><div class="filters narrow"><select id="caseStatus"><option value="">Tüm durumlar</option><option value="new">Yeni</option><option value="investigating">İnceleniyor</option><option value="resolved">Çözüldü</option><option value="false_positive">Yanlış pozitif</option></select></div><div id="cases" class="casegrid"><p class="muted">Henüz vaka bulunmuyor.</p></div><pre id="caseEvidence" class="output" hidden></pre></section>
+    <section id="rules-section" class="panel spacious"><div class="panelhead"><div><span>05 / DETECTION ENGINE</span><h2>Algılama kuralları</h2><p>Açıklanabilir, kanıta bağlı ve MITRE ATT&CK referanslı kurallar.</p></div><span class="tag">Rule-based</span></div><div id="rulesList" class="rulesgrid"></div></section>
+    <section id="audit-section" class="panel spacious"><div class="panelhead"><div><span>06 / ACCOUNTABILITY</span><h2>Audit Trail</h2><p>İçe alımlar ve vaka değişikliklerinin işlem kaydı.</p></div><button id="reloadAudit" class="button ghost">↻ Yenile</button></div><div id="auditList" class="auditlist"></div></section>
+    <footer>© Log Intelligence Lab · Eğitim ve araştırma amaçlı SOC analiz ortamı · Gerçek güvenlik denetiminin yerini almaz.</footer>
+  </main>
+</div>
+</body></html>

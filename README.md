@@ -1,145 +1,106 @@
-# Log Intelligence Lab
+# Log Intelligence Lab V5
 
-> **Interactive mini-SIEM platform** — upload real logs, detect attacks, correlate events, and generate security reports. Built with Python + Flask + vanilla JS.
+**Güvenlik operasyonları için kanıt temelli log analizi ve Mini-SOC çalışma alanı.**
 
----
+Python/Flask + SQLite + HTML/CSS/JavaScript. Proje, halka açık **eğitim ve demo** sayfası ile **özel SOC veri alanını** ayrı tutar.
 
-## Architecture
+## Neler çalışıyor?
 
-```
-Log Source (file / API / dataset)
-        │
-        ▼
- ┌─────────────────────────────────────────┐
- │           Flask Backend (app.py)        │
- │  • File upload validation (5 MB limit)  │
- │  • Rate limiting (token-bucket)         │
- │  • Security headers (CSP, HSTS, etc.)   │
- └───────────────┬─────────────────────────┘
-                 │
-        ┌────────▼────────┐
-        │  log_engine.py  │
-        │  • Multi-format parser             │
-        │    Apache / Auth / Firewall / JSON │
-        │  • Attack signature detection      │
-        │    SQLi · XSS · Dir Traversal      │
-        │  • Analyzer                        │
-        │    IP counts · error rate · top EP │
-        │  • Brute-force alert rules         │
-        │  • Correlation engine              │
-        │    scan → then login               │
-        │  • Z-Score anomaly detection       │
-        │  • IP reputation scoring           │
-        │  • Report builder                  │
-        └────────┬────────┘
-                 │
-  ┌──────────────▼──────────────────┐
-  │         SQLite (analysis.db)    │
-  │  Analysis history · 25 records  │
-  └──────────────┬──────────────────┘
-                 │
-  ┌──────────────▼──────────────────────────────────────┐
-  │              Frontend (index.html + script.js)       │
-  │  • KPI Dashboard     • Chart.js (traffic, IP dist.)  │
-  │  • Alert list        • Correlation panel             │
-  │  • Anomaly panel     • IP Reputation panel           │
-  │  • Analysis history  • Report generator + download   │
-  │  • Drag & Drop upload  • SSE real-time stream        │
-  └──────────────────────────────────────────────────────┘
-```
+- **Açıklanabilir tespit kuralları:** web saldırı göstergeleri, Windows audit log temizleme, IDS alarmı, 5 dakikalık başarısız giriş eşiği, password spraying göstergesi, başarısız giriş sonrası başarılı oturum açma, port taraması, yüksek web trafik hızı.
+- **Log normalleştirme:** Windows Event JSON, Suricata EVE JSON, Sysmon provider JSON, Apache access, SSH auth, firewall kayıtları, generic JSON. Kaynak tarihinin saat dilimi bilinmiyorsa varsayım yapılmaz.
+- **Delil ilişkisi:** her normalize olay için Event ID, ham kayıt ve kaynak satırı; analiz paketi SHA-256; vaka içindeki olay ID'leri ve zaman çizelgesi.
+- **Vaka yönetimi:** new / investigating / resolved / false_positive, analist notları, işlem denetimi.
+- **Log Explorer:** kaynak, IP ve ham metin filtreleri, en fazla 500 kayıt.
+- **Yönetim paneli:** özet KPI, kaynak dağılımı, son paketler, vaka listesi, kurallar, audit.
+- **Güvenlik:** API anahtarı, public/private ayrımı, statik kaynak kodu erişim kısıtlaması, HTML injection önleme, 5MB/10K satır sınırı, kayıt tekrar kontrolü.
+- **Testler:** Python birim/entegrasyon testleri; GitHub Actions ve JavaScript sözdizimi denetimi.
 
-## Features
+**Bunlar henüz yok:** üretim-grade çok kullanıcılı oturum/RBAC, gerçek LLM analiz servisi, Sigma kural derleyici, UEBA model eğitimi, harici GeoIP/TI sağlayıcısı, syslog daemon, Kafka/queue, çok terabayt log indeksleme, canlı WAF/EDR/Cloud connector'ları. Bu projenin "kurumsal SIEM" sertifikası yoktur. Tekil tespit, kompromize kanıtı değildir.
 
-| Area | Details |
-|------|---------|
-| **Log Parsing** | Apache/Nginx, Linux auth (SSH), firewall DROP/ACCEPT, JSON API events |
-| **Collection** | File upload (.log/.txt/.json, max 5 MB), API payload, built-in demo datasets |
-| **Attack Detection** | SQL Injection, XSS, Directory Traversal signatures |
-| **Alerting** | 10+ failed logins, 1000 req/min threshold, nighttime anomaly |
-| **Correlation** | Scan-then-login scenario per IP |
-| **Anomaly Detection** | Z-Score on hourly traffic distribution |
-| **Visualization** | KPI cards, hourly traffic chart, top-IP bar chart, reputation & geo panels |
-| **Reporting** | Daily/Weekly text report, downloadable .txt |
-| **Security** | CSP headers, rate limiting, path traversal guard, upload content validation |
-| **Persistence** | SQLite — last 25 analyses stored and browsable |
-| **Real-time** | SSE stream (`/api/stream`) — heartbeat + analysis events |
+## Adresler
 
-## Stack
+| Yol | İşlev |
+| --- | --- |
+| / | Herkese açık demo ve eğitim |
+| /soc | Özel SOC çalışma alanı |
+| /api/health | Sağlık kontrolü |
+| /api/soc/ingest | Yetkili log alımı |
+| /api/soc/summary | İstatistikler |
+| /api/soc/events | Olay filtreleme |
+| /api/soc/cases | Vaka listesi |
+| /api/soc/cases/<id> | Vaka güncelleme (PATCH) |
+| /api/soc/cases/<id>/timeline | Kanıt olayları |
+| /api/soc/cases/<id>/explain | **Deterministik** kanıt özeti (AI değil) |
+| /api/soc/rules | Rule ID/MITRE |
+| /api/soc/audit | İşlem günlüğü |
 
-- **Backend**: Python 3.11+, Flask 3.0, SQLite
-- **Frontend**: Vanilla JS (ES2020), Chart.js 4, Space Grotesk / Sora fonts
-- **Testing**: pytest
+Tüm SOC API uçları, HTTP \`X-API-Key\` başlığında güçlü anahtar ister. \`LOG_LAB_API_KEY\` yoksa SOC API **503 döner ve veri kabul etmez**. Anahtar en az 24 karakterdir; depoya, JS kaynaklarına veya istemci loglarına yazılmaz.
 
-## Run Locally
+## Yerel kurulum (Windows / Linux)
 
-```powershell
-# 1. Create virtual environment
+\`\`\`sh
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+# Windows: .venv\\Scripts\\activate
+# Linux/macOS: source .venv/bin/activate
+python -m pip install -r requirements.txt
+\`\`\`
 
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Start server
+**Windows PowerShell:**
+\`\`\`powershell
+$env:LOG_LAB_API_KEY = "buraya-32-karakterden-uzun-rastgele-bir-anahtar"
+$env:LOG_LAB_DB_PATH = ".\\private\\analysis.db"
 python app.py
+\`\`\`
 
-# 4. Open browser → http://127.0.0.1:5000
-```
+**Linux:**
+\`\`\`sh
+export LOG_LAB_API_KEY="$(python -c 'import secrets;print(secrets.token_urlsafe(40))')"
+export LOG_LAB_DB_PATH="./private/analysis.db"
+python app.py
+\`\`\`
 
-## Run Tests
+Tarayıcıdan \`http://localhost:5000/soc\` açın. SOC başlığındaki API anahtarını girin (tarayıcı yerel depolamasına kaydetmez). **Gerçek kullanıcı verileri yerine önce anonim örnek logları deneyin.**
 
-```powershell
-.\.venv\Scripts\pytest tests/ -v
-```
+## Örnek API
 
-## API Reference
+\`\`\`sh
+curl -X POST http://localhost:5000/api/soc/ingest \
+  -H "X-API-Key: $LOG_LAB_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"raw_logs":"{\"timestamp\":\"2026-10-31T08:00:00Z\",\"EventID\":4625,\"ip\":\"192.0.2.42\",\"user\":\"test\"}"}'
+\`\`\`
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check |
-| GET | `/api/datasets` | List available datasets |
-| GET | `/api/datasets/<name>` | Load a dataset |
-| POST | `/api/analyze` | Analyze logs (file or JSON body) |
-| POST | `/api/report` | Generate report |
-| GET | `/api/analysis/history` | Last 25 analyses |
-| GET | `/api/stream` | SSE event stream |
+Sistem olayları parse eder, varsa tespitleri kanıt kayıtlarıyla birlikte kaydeder ve \`batch_id\`, \`sha256\`, \`risk\`, \`alert_count\` döndürür.
 
-### POST /api/analyze
+## Render / canlı yayın
 
-```json
-// JSON body
-{ "raw_logs": "192.168.1.1 - - [21/Apr/2026:10:00:00 +0300] \"GET / HTTP/1.1\" 200 1024" }
+Bu repo bir \`render.yaml\` tanımlar. Render Blueprint üzerinden oluşturulurken \`LOG_LAB_API_KEY\` otomatik rastgele üretilebilir. **Mevcut manuel Render servislerinde Blueprint değişikliğinin otomatik olarak uygulanacağı varsayılmamalıdır:** servis Dashboard → Environment bölümünden \`LOG_LAB_API_KEY\` ayarlanmalıdır.
 
-// or multipart/form-data with field: file
-```
+- Bir dağıtım **GitHub main** dalını izliyorsa onaylanan merge ile otomatik deploy tetiklenebilir; bunu Render panelinden kontrol edin.
+- Render'ın ücretsiz dosya sistemi **kalıcı veri depolama garantisi sunmaz**. Gerçek SOC olayları için kalıcı disk/veritabanı, TLS, ayrı servis kullanıcıları, düzenli yedekleme, veri saklama politikası ve erişim denetimi gerekir.
+- \`LOG_LAB_DB_PATH\` kalıcı bir disk konumuna işaret edebilir. Disk yoksa servis yeniden dağıtımında log geçmişi silinebilir.
+- Anahtar tarayıcıda sadece sekme belleğinde tutulur. API anahtarını herkese dağıtmayın.
 
-### POST /api/report
+## Güvenlik ve doğruluk kuralları
 
-```json
-{ "report_type": "Daily", "analysis_id": 42 }
-```
+1. Tespitler *göstergedir*, başarılı istismar kanıtı değildir.
+2. IP istihbaratı ve GeoIP yoksa **unknown** gösterilir; uydurma temiz/zararlı veya ülke puanı verilmez.
+3. Saat dilimi bilinmeyen olaylar zamana dayalı korelasyonda kullanılmaz.
+4. SOC çalışması gerçek kişisel veri içerebileceğinden yasal izin olmadan internete yüklemeyin.
+5. Dış AI/tehdit istihbaratı çağrısı yapılmaz. \`/explain\` sabit, denetlenebilir öneriler üretir.
+6. Şeffaf limitler: 5MB HTTP yükleme, 10.000 olay, 16.384 karakter/satır.
 
-## Demo Datasets
+## Testler
 
-| Dataset | Contents |
-|---------|----------|
-| `apache.log` | 60+ entries: normal traffic, brute force, SQLi, XSS, directory traversal, scanner |
-| `auth.log` | 40+ entries: two SSH brute-force attacks, legitimate logins, night-time anomaly |
-| `mixed.log` | All log types combined: correlation scenario (scan → brute force → API attack) |
+\`\`\`sh
+python -m pytest -q
+python -m compileall -q app.py log_engine.py soc_engine.py soc_api.py
+node --check script.js
+node --check soc.js
+\`\`\`
 
-## Deploy to Render (Free)
+CI: [GitHub Actions](../../actions). Ayrıntılı sonraki modüller için [upgrade planı](./SECURITY_UPGRADE_ROADMAP.md).
 
-1. Push this repo to GitHub
-2. Go to [render.com](https://render.com) → New → Web Service
-3. Connect your repo — Render auto-detects `render.yaml`
-4. Click **Deploy**
+## Proje yaklaşımı
 
-The `render.yaml` in this repo handles the build and start commands.
-
-## Production Notes
-
-- Put Flask behind Nginx and enforce HTTPS / HSTS
-- Use a production WSGI server (Waitress on Windows, Gunicorn on Linux)
-- Disable debug: `FLASK_DEBUG=false`
-- Move rate limiting to Redis-backed limiter for scale
-- Add real GeoIP (MaxMind GeoLite2) and AbuseIPDB reputation lookup
+Bu proje siber güvenlik ve adli bilişim öğrencileri için özgürce incelenebilir bir analiz laboratuvarı olarak tasarlanmıştır; güvenlik ürününe ait kurumsal garantiler sunmaz.
