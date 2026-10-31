@@ -1,4 +1,5 @@
 import json
+import hmac
 import os
 import queue
 import sqlite3
@@ -13,10 +14,11 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 from log_engine import analyze_logs, build_report, parse_logs
+from soc_api import create_soc_blueprint
 
 BASE_DIR = Path(__file__).resolve().parent
 DATASET_DIR = BASE_DIR / 'datasets'
-DB_PATH = BASE_DIR / 'analysis.db'
+DB_PATH = Path(os.environ.get('LOG_LAB_DB_PATH', str(BASE_DIR / 'analysis.db')))
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'log', 'txt', 'json'}
 RATE_WINDOW = 60
@@ -35,6 +37,7 @@ _heartbeat_started = False
 
 
 def init_db() -> None:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             '''
@@ -74,13 +77,8 @@ def _allowed_file(filename: str) -> bool:
 
 
 def _client_ip() -> str:
-    forwarded_for = request.headers.get('X-Forwarded-For', '')
-    if forwarded_for:
-        first_hop = forwarded_for.split(',')[0].strip()
-        if first_hop:
-            return first_hop
+    # Never trust X-Forwarded-For from an arbitrary client.
     return request.remote_addr or 'unknown'
-
 
 def _bucket_key() -> str:
     endpoint = request.endpoint or 'unknown'
@@ -149,9 +147,16 @@ def _store_analysis(source: str, analysis: Dict[str, Any]) -> int:
 
 
 def create_app() -> Flask:
-    app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path='')
+    app = Flask(__name__, static_folder=None)
     app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
     init_db()
+
+    @app.route('/<path:filename>')
+    def public_asset(filename: str):
+        # Do not expose source code, SQLite databases, datasets or environment files.
+        if filename not in {'script.js', 'style.css', 'soc.js', 'soc.css'}:
+            return _json_error('Not found', 404)
+        return send_from_directory(BASE_DIR, filename)
 
     @app.errorhandler(HTTPException)
     def handle_http_error(exc: HTTPException) -> Response:
@@ -183,7 +188,14 @@ def create_app() -> Flask:
 
     @app.before_request
     def guardrails() -> Any:
-        _ensure_heartbeat_started()
+        if request.path in {'/api/analysis/history', '/api/stream'}:
+            # Legacy history and single-consumer stream expose shared tenant data.
+            return _json_error('This legacy endpoint is disabled; use authenticated /api/soc endpoints', 410)
+        if request.path == '/api/report' and request.method == 'POST':
+            data = request.get_json(silent=True)
+            if isinstance(data, dict) and data.get('analysis_id') is not None:
+                return _json_error('Saved analyses are only available through the authenticated SOC workspace', 403)
+
         if _rate_limited(_bucket_key()):
             return _json_error('Rate limit exceeded', 429)
 
@@ -191,6 +203,12 @@ def create_app() -> Flask:
 
 
 app = create_app()
+app.register_blueprint(create_soc_blueprint(DB_PATH))
+
+
+@app.route('/soc')
+def soc_workspace() -> Response:
+    return send_from_directory(BASE_DIR, 'soc.html')
 
 
 @app.route('/')
@@ -247,7 +265,10 @@ def analyze_endpoint() -> Response:
         payload = request.get_json(silent=True) or {}
         if not isinstance(payload, dict):
             return _json_error('Invalid JSON payload', 400)
-        raw_logs = str(payload.get('raw_logs', '')).strip()
+        raw_value = payload.get('raw_logs', '')
+        if not isinstance(raw_value, str):
+            return _json_error('raw_logs must be a string', 400)
+        raw_logs = raw_value.strip()
         api_lines = payload.get('api_lines', [])
         if isinstance(api_lines, list) and api_lines:
             api_serialized = []
@@ -264,17 +285,9 @@ def analyze_endpoint() -> Response:
 
     parsed = parse_logs(raw_logs)
     analysis = analyze_logs(parsed)
-    analysis_id = _store_analysis(source, analysis)
+    # Public demo is stateless. Only authorized SOC ingestion persists sensitive logs.
+    analysis_id = None
 
-    _push_stream_event(
-        {
-            'analysis_id': analysis_id,
-            'created_at': _utc_now_iso(),
-            'total': analysis.get('total', 0),
-            'alerts': len(analysis.get('alerts', [])),
-            'risk': analysis.get('risk', 'low'),
-        }
-    )
 
     return jsonify({'analysis_id': analysis_id, 'analysis': analysis})
 
@@ -284,19 +297,11 @@ def report_endpoint() -> Response:
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         return _json_error('Invalid JSON payload', 400)
-    report_type = str(payload.get('report_type', 'Daily'))
+    report_type = str(payload.get('report_type', 'Daily'))[:40]
 
     analysis = payload.get('analysis')
-    if analysis is None:
-        analysis_id = payload.get('analysis_id')
-        if analysis_id is None:
-            return _json_error('analysis or analysis_id is required', 400)
-        with _db_conn() as conn:
-            row = conn.execute('SELECT payload_json FROM analyses WHERE id = ?', (analysis_id,)).fetchone()
-        if not row:
-            return _json_error('Analysis record not found', 404)
-        analysis = json.loads(row['payload_json'])
-
+    if not isinstance(analysis, dict):
+        return _json_error('analysis must be a JSON object; generate the report from the current demo result', 400)
     report = build_report(analysis, report_type=report_type)
     return jsonify({'report_type': report_type, 'report': report})
 
