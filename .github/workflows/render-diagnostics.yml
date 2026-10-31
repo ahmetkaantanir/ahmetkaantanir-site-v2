@@ -8,15 +8,18 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 5
     steps:
-      - name: Check candidate Render host for health JSON
+      - name: Check Flask origin health, SOC and source blocking
         shell: bash
         run: |
           set -uo pipefail
-          for HOST in log-intelligence-lab.onrender.com ahmetkaantanir-site-v2.onrender.com; do
-            CODE=$(curl --silent --show-error --location --max-time 50 --output /tmp/render-body --write-out '%{http_code}' "https://$HOST/api/health") || CODE="000"
+          HOST="https://ahmetkaantanir-site-v2.onrender.com"
+          for PATHNAME in /api/health /soc /soc.js /app.py /soc_api.py /api/soc/summary; do
+            CODE=$(curl --silent --show-error --max-time 50 --output /tmp/render-body --write-out '%{http_code}' "$HOST$PATHNAME") || CODE="000"
             JSON=no
             if grep -q '"service"' /tmp/render-body; then JSON=yes; fi
-            echo "RENDER $HOST status=$CODE service_json=$JSON"
+            MARKER=no
+            if grep -q 'SOC Workspace' /tmp/render-body; then MARKER=yes; fi
+            echo "RENDER $PATHNAME status=$CODE json_service=$JSON soc_marker=$MARKER size=$(wc -c < /tmp/render-body)"
           done
