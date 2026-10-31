@@ -340,14 +340,11 @@ function renderAnomalies(data) {
     return;
   }
   anomalies.forEach(a => {
-    const div = document.createElement('div');
-    div.className = 'anomaly-item';
-    div.innerHTML = `
-      <span class="anomaly-hour">Saat ${String(a.hour).padStart(2,'0')}:00</span>
-      <span>${a.value} istek</span>
-      <span class="anomaly-z">z=${a.z_score}</span>
-    `;
-    container.appendChild(div);
+    const div = document.createElement('div'); div.className = 'anomaly-item';
+    for (const value of [`Saat ${String(a.hour).padStart(2,'0')}:00`, `${a.value} istek`, `z=${a.z_score}`]) {
+      const span = document.createElement('span'); span.textContent = value; div.append(span);
+    }
+    container.append(div);
   });
 }
 
@@ -363,14 +360,12 @@ function renderReputation(items) {
     return;
   }
   items.forEach(item => {
-    const div = document.createElement('div');
-    div.className = 'rep-item';
-    div.innerHTML = `
-      <span class="rep-ip">${item.ip}</span>
-      <span class="rep-score" style="color:${item.level==='malicious'?'var(--danger)':item.level==='suspicious'?'var(--warn)':'var(--ok)'}">Skor: ${item.score}</span>
-      <span class="rep-badge ${item.level}">${item.level}</span>
-    `;
-    container.appendChild(div);
+    const div = document.createElement('div'); div.className = 'rep-item';
+    const ip = document.createElement('span'); ip.className='rep-ip'; ip.textContent = item.ip;
+    const score = document.createElement('span'); score.className='rep-score';
+    score.textContent = item.score == null ? 'Skor: bilinmiyor' : 'Skor: '+item.score;
+    const label = document.createElement('span'); label.className='rep-badge';
+    label.textContent = item.level || 'unknown'; div.append(ip,score,label);container.append(div);
   });
 }
 
@@ -513,28 +508,14 @@ function downloadReport() {
 async function loadHistory() {
   const tbody = els.historyBody;
   if (!tbody) return;
-  try {
-    const res = await fetch(`${API_BASE}/api/analysis/history`);
-    const payload = await parseJsonResponse(res);
-    if (!res.ok || !payload) throw new Error('History yüklenemedi.');
-    const items = payload.items || [];
-    if (!items.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Henüz analiz kaydı yok.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = items.map(item => `
-      <tr>
-        <td>${item.id}</td>
-        <td>${formatDate(item.created_at)}</td>
-        <td>${sourceLabel(item.source)}</td>
-        <td>${item.total_logs.toLocaleString()}</td>
-        <td>${item.total_alerts}</td>
-        <td><span class="risk-badge ${item.risk}">${toRiskLabel(item.risk)}</span></td>
-      </tr>
-    `).join('');
-  } catch {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Geçmiş yüklenemedi. Sunucu çalışıyor mu?</td></tr>';
-  }
+  tbody.replaceChildren();
+  const row = document.createElement('tr');
+  const cell = document.createElement('td');
+  cell.colSpan = 6;
+  cell.className = 'empty-state';
+  cell.textContent = 'Kayıtlı analiz geçmişi artık güvenli SOC Workspace üzerinden görüntülenir.';
+  row.append(cell);
+  tbody.append(row);
 }
 
 function formatDate(iso) {
@@ -655,7 +636,9 @@ function toast(message, type = 'info', duration = 4000) {
 
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
-  el.innerHTML = `<span class="toast-icon">${TOAST_ICONS[type] || TOAST_ICONS.info}</span><span>${message}</span>`;
+  const icon = document.createElement('span'); icon.className='toast-icon'; icon.textContent = type === 'error' ? '!' : '●';
+  const content = document.createElement('span'); content.textContent = message;
+  el.replaceChildren(icon,content);
   container.appendChild(el);
 
   const remove = () => {
