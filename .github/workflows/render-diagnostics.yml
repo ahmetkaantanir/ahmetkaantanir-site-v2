@@ -1,0 +1,22 @@
+name: Verify Render Backend Host
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check candidate Render host for health JSON
+        shell: bash
+        run: |
+          set -uo pipefail
+          for HOST in log-intelligence-lab.onrender.com ahmetkaantanir-site-v2.onrender.com; do
+            CODE=$(curl --silent --show-error --location --max-time 50 --output /tmp/render-body --write-out '%{http_code}' "https://$HOST/api/health") || CODE="000"
+            JSON=no
+            if grep -q '"service"' /tmp/render-body; then JSON=yes; fi
+            echo "RENDER $HOST status=$CODE service_json=$JSON"
+          done
