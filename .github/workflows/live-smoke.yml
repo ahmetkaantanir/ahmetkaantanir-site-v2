@@ -1,0 +1,36 @@
+name: Live Site Verification
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public domain and API
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOST="https://dev.ahmetkaantanir.com"
+          for PATHNAME in / /soc /api/health; do
+            echo "Checking $PATHNAME"
+            CODE=$(curl --silent --show-error --location --retry 1 --max-time 25 --output /tmp/live-response --write-out '%{http_code}' "$HOST$PATHNAME") || CODE="000"
+            echo "$PATHNAME returned HTTP $CODE"
+            if [ "$CODE" != "200" ]; then
+              echo "::error::Live $PATHNAME returned HTTP $CODE"
+              exit 1
+            fi
+            if [ "$PATHNAME" = "/soc" ] && ! grep -qi 'SOC Workspace' /tmp/live-response; then
+              echo "::error::SOC V5 marker missing from live page"
+              exit 1
+            fi
+            if [ "$PATHNAME" = "/api/health" ] && ! grep -q '"status"' /tmp/live-response; then
+              echo "::error::API health response is not recognized"
+              exit 1
+            fi
+          done
+          echo "Live domain smoke test passed."
