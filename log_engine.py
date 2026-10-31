@@ -18,11 +18,7 @@ SQLI_REGEX = re.compile(r'union\s+select|or\s+1=1|information_schema|sleep\(', r
 XSS_REGEX = re.compile(r'<script>|onerror=|javascript:', re.IGNORECASE)
 TRAVERSAL_REGEX = re.compile(r'\.\.|/etc/passwd|win\.ini', re.IGNORECASE)
 
-KNOWN_BAD_IP_REPUTATION = {
-    '203.0.113.50': 92,
-    '198.51.100.23': 85,
-    '45.10.10.10': 88,
-}
+KNOWN_BAD_IP_REPUTATION = {}  # Unknown IPs have no asserted reputation.
 
 
 @dataclass
@@ -234,6 +230,14 @@ def _safe_json_parse(line: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _safe_status(value: Any) -> int:
+    try:
+        n = int(value)
+        return n if 100 <= n <= 599 else 0
+    except (ValueError, TypeError, OverflowError):
+        return 0
+
+
 def _parse_json_line(raw: str, payload: Dict[str, Any]) -> ParsedLog:
     msg = json.dumps(payload)
     timestamp = _parse_date_smart(str(payload.get('timestamp', '')))
@@ -243,7 +247,7 @@ def _parse_json_line(raw: str, payload: Dict[str, Any]) -> ParsedLog:
         ip=str(payload.get('ip', 'unknown')),
         timestamp=timestamp,
         request=str(payload.get('endpoint', payload.get('message', 'api_event'))),
-        status=int(payload.get('status', 200)),
+        status=_safe_status(payload.get('status', 200)),
         login_failed=bool(re.search(r'failed login|auth fail', msg, re.IGNORECASE)),
         tags=detect_attack_tags(msg),
     )
@@ -356,37 +360,18 @@ def _risk_level(alerts: List[Dict[str, Any]]) -> str:
 
 
 def _reputation_summary(top_ips: List[Any]) -> List[Dict[str, Any]]:
-    summary: List[Dict[str, Any]] = []
-    for ip, count in top_ips[:8]:
-        score = KNOWN_BAD_IP_REPUTATION.get(ip, 15)
-        level = 'malicious' if score >= 80 else ('suspicious' if score >= 50 else 'clean')
-        summary.append({'ip': ip, 'score': score, 'level': level, 'requests': count})
-    return summary
+    """Never invent threat intelligence from an address."""
+    return [{'ip': ip, 'score': None, 'level': 'unknown', 'requests': count}
+            for ip, count in top_ips[:8]]
 
 
 def _geo_summary(top_ips: List[Any]) -> List[Dict[str, Any]]:
-    country_counter = Counter()
-    for ip, _ in top_ips:
-        country_counter[_ip_country(ip)] += 1
-    return [{'country': c, 'count': n} for c, n in country_counter.items()]
+    """Geographic lookup intentionally unavailable without a verified provider."""
+    return [{'country': 'Unknown', 'count': len(top_ips)}] if top_ips else []
 
 
 def _ip_country(ip: str) -> str:
-    try:
-        obj = ip_address(ip)
-        if obj.is_private:
-            return 'Private Network'
-    except ValueError:
-        return 'Unknown'
-
-    first = int(ip.split('.')[0]) if ip and ip[0].isdigit() else 0
-    if first < 64:
-        return 'US'
-    if first < 128:
-        return 'EU'
-    if first < 192:
-        return 'APAC'
-    return 'MENA'
+    return 'Unknown'
 
 
 def _anomaly_detection(hourly: List[int]) -> Dict[str, Any]:
