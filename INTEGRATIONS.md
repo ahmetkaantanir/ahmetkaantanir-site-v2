@@ -96,6 +96,18 @@ Farklı collector'ların farklı paketleme/boşluklarla aynı olayları gönderm
 
 ## 3. GNS3 laboratuvarı
 
+### Canlı backend'e gerçekten bağlanma yolu
+
+Servisler çalışan bir Linux sunucuda veya izin verilen yerel Hyper-V/Docker ortamında bulunmalıdır. Render'ın `127.0.0.1` adresi kullanıcının bilgisayarı değildir. Sunucu yoksa yalnızca ortam değişkeni eklemek bağlantı oluşturmaz.
+
+Yerel servislerin dışarı port açmadan erişilebilmesi için [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/) kullanılabilir. Her servis için ayrı hostname ve Cloudflare Access uygulaması tanımlanır. Render'ın servis erişimi için **Service Auth** politikası ve ilgili `LAB_<SERVIS>_CF_ACCESS_CLIENT_ID` / `LAB_<SERVIS>_CF_ACCESS_CLIENT_SECRET` çifti kullanılır. Bunlar upstream'in kendi Basic/Bearer kimlik doğrulamasını değiştirmez ve tarayıcıya gönderilmez. Access koruması kurulmadan Loki/GNS3/Wazuh API'leri kamuya açılmamalıdır. [Resmî servis token protokolü](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/).
+
+Grafana için `LAB_GRAFANA_URL` backend'in ulaşabildiği origin, `LAB_GRAFANA_PUBLIC_URL` kullanıcının açacağı panel origin'idir. Compose bunları `http://grafana:3000` ve varsayılan `http://127.0.0.1:3000` olarak ayırır. Canlı tünel kurulumunda ilgili HTTPS hostname'leri kullanılır; tarayıcı erişimi için ayrıca kullanıcı Access oturumu tanımlanır.
+
+Wazuh için kısa ömürlü token'ı elle kopyalamak yerine `LAB_WAZUH_USER` / `LAB_WAZUH_PASSWORD` ayarlanabilir. Adaptör `POST /security/user/authenticate` üzerinden JWT alır, bellekte en fazla beş dakika tutar ve GET isteğinde 401 gelirse bir kez yeniler. Statik `LAB_WAZUH_TOKEN` verilirse bu değer önceliklidir. Self-signed sertifika için `LAB_WAZUH_CA_FILE` ile güvenilen CA verilir; TLS doğrulaması kapatılmaz. [Resmî Wazuh kimlik doğrulama protokolü](https://documentation.wazuh.com/current/user-manual/api/getting-started.html).
+
+Bağlandı sayılma ölçütü: canlı SOC'un bağlantı testinin 200 dönmesi, Grafana'da aynı kaynak kaydının sorgulanması, GNS3'te gerçek proje/düğüm listesinin ve Wazuh'ta gerçek ajan listesinin alınmasıdır. Yerel HTTP protokol testleri, üretimde bu servislerin kurulduğu anlamına gelmez.
+
 Önerilen ayrı topoloji: WAN → OPNsense → switch → Windows, Linux, Suricata/Zeek. GNS3 yönetim erişimini özel ağda tutun. `LAB_GNS3_URL`, gerekiyorsa `LAB_GNS3_USER` / `LAB_GNS3_PASSWORD` ayarlayın. Adaptör `/v2/projects`, proje nodes ve links uçlarını **salt okunur** kullanır. GNS3 sürümünüz bu API/kimlik doğrulamasıyla uyumlu olmalıdır.
 
 SOC → Entegrasyon ve Lab → Projeleri getir → Topolojiyi aç. Cihaz adına basmak Log Explorer'da `host` filtresini açar; logdaki host ile GNS3 node adı eşleşmelidir. Console URL'leri, appliance özellikleri ve parolaları tarayıcıya aktarılmaz. Grafana bağlantısı seçili olayın host ve ±5 dakika zaman aralığını taşır. Özel loglar URL'ye eklenmez; host adı panel URL'sinde yer alır.

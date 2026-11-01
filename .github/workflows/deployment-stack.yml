@@ -42,7 +42,9 @@ jobs:
                   soc=get('http://127.0.0.1:5000/api/soc/summary',os.environ['LOG_LAB_API_KEY'])
                   loki=get('http://127.0.0.1:3100/loki/api/v1/query_range?query=%7Bjob%3D%22security%22%7D&limit=10')
                   grafana=get('http://127.0.0.1:3000/api/health')
+                  integration=get('http://127.0.0.1:5000/api/soc/platform/integrations/grafana/health',os.environ['LOG_LAB_API_KEY'])
                   if soc['events']==1 and loki['data']['result'] and grafana['database']=='ok':
+                      assert integration['connected'] is True
                       assert soc['alerts']==1
                       print('Real stack passed: SOC auth, durable collector, Loki/Alloy ingestion and Grafana database.')
                       break
