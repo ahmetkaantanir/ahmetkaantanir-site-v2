@@ -1,5 +1,6 @@
 """Exercise the HTTP authentication boundary against a local test server."""
 import base64
+import hashlib
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -25,6 +26,13 @@ def service(monkeypatch):
 
         def do_POST(self):
             state['requests'].append((self.path, dict(self.headers)))
+            if self.path == '/api/soc/ingest':
+                if self.headers.get('User-Agent') != 'LogIntelligenceLab-Collector/1.0':
+                    self.reply(403, {'error': 'Unidentified collector'})
+                    return
+                raw = json.loads(self.rfile.read(int(self.headers['Content-Length'])))['raw_logs']
+                self.reply(201, {'sha256': hashlib.sha256(raw.encode()).hexdigest()})
+                return
             expected = 'Basic ' + base64.b64encode(b'api-user:api-password').decode()
             if self.path == '/security/user/authenticate' and self.headers.get('Authorization') == expected:
                 state['issued'] += 1
@@ -116,3 +124,14 @@ def test_grafana_cloud_queries_use_instance_id_and_basic_token(service, monkeypa
     monkeypatch.setenv('LAB_LOKI_PASSWORD', 'cloud-read-token')
     monkeypatch.delenv('LAB_LOKI_TOKEN', raising=False)
     assert fetch_json('loki', '/loki/api/v1/labels')['status'] == 'success'
+
+
+def test_collector_identifies_itself_and_receives_hash_ack(service, tmp_path):
+    from collectors.file_forwarder import connect, deliver, enqueue_file
+    base, _ = service
+    file = tmp_path/'source.log'
+    file.write_bytes(b'synthetic integration record\n')
+    with connect(tmp_path/'outbox.db') as db:
+        enqueue_file(db, file)
+        assert deliver(db, base, 'test-collector-secret-longer-than-24') is True
+        assert db.execute('SELECT COUNT(*) FROM outbox').fetchone()[0] == 0

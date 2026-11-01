@@ -46,7 +46,7 @@ def _request_json(service, path, params=None, method="GET", payload=None, author
     address = origin(service) + path
     if params:
         address += "?" + urlencode(params)
-    headers = {"Accept": "application/json"}
+    headers = {"Accept": "application/json", "User-Agent": "LogIntelligenceLab/1.0"}
     access_id = os.getenv(f"LAB_{service.upper()}_CF_ACCESS_CLIENT_ID", "")
     access_secret = os.getenv(f"LAB_{service.upper()}_CF_ACCESS_CLIENT_SECRET", "")
     if bool(access_id) != bool(access_secret):

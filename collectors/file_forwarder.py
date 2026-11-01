@@ -76,7 +76,8 @@ def deliver(db, base, key):
     item, body, attempts = row
     try:
         req = Request(base.rstrip("/")+"/api/soc/ingest", data=body.encode(),
-            headers={"Content-Type":"application/json", "X-API-Key":key}, method="POST")
+            headers={"Content-Type":"application/json", "X-API-Key":key,
+                     "User-Agent":"LogIntelligenceLab-Collector/1.0"}, method="POST")
         with build_opener(NoRedirect).open(req, timeout=15) as response:
             result = json.loads(response.read(65536))
             # A response must explicitly acknowledge this exact payload, including duplicates.
