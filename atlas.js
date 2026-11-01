@@ -1,12 +1,43 @@
 'use strict';
 /* MapLibre 5.24.0: local CSP build, real raster globe, no SOC data in map requests. */
-window.initSocAtlas = function({$, atlasPlaces, put, element, onEvidence, onExplore}) {
+window.initSocAtlas = function({$, atlasPlaces, put, element, onEvidence, onExplore, onGeoIP}) {
   const root = $('#globe'), motion = matchMedia('(prefers-reduced-motion: reduce)');
   let map, selected = atlasPlaces[0], paused = motion.matches, frame = 0, last = 0, layer = '', tileErrors = 0, visible = false, ready = false;
   let refreshSelection = () => {};
   const markers=[],eventMarkers=[];
   let items=[],geo=window.labGeo.summarize([]),context={},geoSelected=false;
-  const eventMode=()=>$('#atlasMode').value==='events';
+  let allItems=[], geoipItems=[], geoipRevision=0, replayTimer;
+  const geoipOption=element('option','','GeoIP · Tahmini konum');geoipOption.value='geoip';$('#atlasMode').append(geoipOption);
+  const geoipMode=()=>$('#atlasMode').value==='geoip';
+  const filters=element('div','atlas-data-bar');
+  const severity=element('select');severity.setAttribute('aria-label','Alarm seviyesi');
+  for(const [value,label] of [['','Tüm seviyeler'],['critical','Critical'],['high','High'],['medium','Medium'],['low','Low'],['unknown','Kural eşleşmesi yok']]){const o=element('option','',label);o.value=value;severity.append(o);}
+  const time=element('input');time.type='range';time.min='0';time.max='100';time.value='100';time.setAttribute('aria-label','Zaman çizelgesi');
+  const timeLabel=element('span','','Tüm zamanlar'),play=element('button','button ghost','Zamanı oynat');
+  filters.append(severity,time,timeLabel,play);$('.atlas-toolbar').before(filters);
+  function applyFilters(){
+    const base=geoipMode()?geoipItems:allItems;
+    const dates=base.map(e=>Date.parse(e.timestamp)).filter(Number.isFinite),first=Math.min(...dates),lastTime=Math.max(...dates);
+    const cutoff=first+(lastTime-first)*Number(time.value)/100;
+    items=base.filter(e=>(!severity.value||(severity.value==='unknown'?!e.severity:e.severity===severity.value))&&(time.value==='100'||(Number.isFinite(Date.parse(e.timestamp))&&Date.parse(e.timestamp)<=cutoff)));
+    timeLabel.textContent=time.value==='100'?'Tüm zamanlar':Number.isFinite(cutoff)?new Date(cutoff).toISOString():'Zaman bilgisi yok';
+    geo=window.labGeo.summarize(items);renderGeo();if(eventMode())geoOverview();
+    $('#geoCoverage').replaceChildren(element('strong','',`${geo.located} / ${geo.total} konumlu olay`),element('small','',geoipMode()?'GEOIP TAHMİNİ · Kaynak log kanıtı veya saldırgan kimliği değildir.':context.synthetic?'SENTETİK SİMÜLASYON · Gerçek trafik değildir.':'Son yüklenen sayfa · Seviye/zaman filtresi uygulanır.'));
+  }
+  function stopReplay(){clearTimeout(replayTimer);replayTimer=undefined;play.textContent='Zamanı oynat';}
+  severity.addEventListener('change',applyFilters);time.addEventListener('input',()=>{stopReplay();applyFilters();});
+  play.addEventListener('click',()=>{if(replayTimer){stopReplay();return;}time.value='0';play.textContent='Oynatmayı durdur';function tick(){if(document.hidden||$('#intelligence').hidden){stopReplay();return;}applyFilters();if(Number(time.value)>=100){stopReplay();return;}time.value=String(Number(time.value)+5);replayTimer=setTimeout(tick,motion.matches?1000:500);}replayTimer=setTimeout(tick,50);});
+  const eventMode=()=>$('#atlasMode').value!=='reference';
+  async function loadGeoIP(){
+    const revision=++geoipRevision;geoipItems=[];applyFilters();
+    const ips=[...new Set(allItems.map(e=>e.ip).filter(Boolean))].slice(0,50);
+    if(!ips.length)return;
+    try{
+      const response=await onGeoIP(ips);if(revision!==geoipRevision||!geoipMode())return;
+      const matches=new Map(response.items.map(item=>[item.ip,item]));
+      geoipItems=allItems.map(event=>{const match=matches.get(event.ip);return match?{...event,_original:event,_geoip:match,raw:JSON.stringify({source:{geo:{location:match.location}}})}:event.raw?{...event,_original:event,raw:'{}'}:event;});applyFilters();
+    }catch(error){if(revision!==geoipRevision||!geoipMode())return;$('#geoDetail').replaceChildren(element('h3','','GeoIP kullanılamıyor'),element('p','',error.message));}
+  }
   function locationControls(enabled){
     for(const id of ['flyCity','flyStreet'])$('#'+id).disabled=!enabled||!map;
     $('#externalMap').setAttribute('aria-disabled',String(!enabled));
@@ -15,12 +46,12 @@ window.initSocAtlas = function({$, atlasPlaces, put, element, onEvidence, onExpl
   function showGeo(group,fly=true){
     geoSelected=true;selected={id:'event',lon:group.point[0],lat:group.point[1]};
     const detail=$('#geoDetail');detail.replaceChildren();
-    detail.append(element('span','fieldlabel','LOGDA BEYAN EDİLEN KONUM'),element('h3','',`${selected.lat.toFixed(3)}° / ${selected.lon.toFixed(3)}°`),element('p','', 'Konum doğrulanmış fiziksel adres veya saldırgan kimliği değildir.'));
+    detail.append(element('span','fieldlabel',geoipMode()?'GEOIP · TAHMİNİ KONUM':'LOGDA BEYAN EDİLEN KONUM'),element('h3','',`${selected.lat.toFixed(3)}° / ${selected.lon.toFixed(3)}°`),element('p','', 'Konum doğrulanmış fiziksel adres veya saldırgan kimliği değildir.'));
     for(const index of group.indices.slice(0,10)){
       const event=items[index],button=element('button','geo-evidence','Kanıtı aç');
       const record=element('code','',event.event_id||String(index+1));
       const fields=Object.entries(window.labGeo.coordinates(event)).filter(([,point])=>point[0]===group.point[0]&&point[1]===group.point[1]).map(([side])=>side+'.geo.location');
-      button.append(record,element('code','',fields.join(' + ')));button.addEventListener('click',()=>onEvidence(event));detail.append(button);
+      button.append(record,element('code','',geoipMode()?`${event._geoip?.source} · ${event._geoip?.updated_at}`:fields.join(' + ')));button.addEventListener('click',()=>onEvidence(event._original||event));detail.append(button);
     }
     put($('#mapLocation'),`${selected.lat.toFixed(3)}° / ${selected.lon.toFixed(3)}°`);
     $('#externalMap').href=`https://www.openstreetmap.org/#map=10/${selected.lat}/${selected.lon}`;
@@ -49,6 +80,7 @@ window.initSocAtlas = function({$, atlasPlaces, put, element, onEvidence, onExpl
     if(ready)map.getSource('event-connections')?.setData(geo.links);
   }
   function setMode(){
+    if(geoipMode())loadGeoIP();else{geoipRevision++;applyFilters();}
     const events=eventMode();$('#geoDetail').hidden=!events;$('#referenceControls').hidden=events;
     $('.geo-legend').hidden=!events;
     for(const entry of markers)entry.marker.getElement().hidden=events;
@@ -57,10 +89,7 @@ window.initSocAtlas = function({$, atlasPlaces, put, element, onEvidence, onExpl
     if(events)geoOverview();else{showCountry(atlasPlaces.find(p=>p.id===$('#countrySelect').value)||atlasPlaces[0]);locationControls(true);}
   }
   function updateEvents(events,scope={}){
-    items=events;context=scope;geo=window.labGeo.summarize(events);
-    const label=element('strong','',`${geo.located} / ${geo.total} konumlu olay`);
-    const coverage=$('#geoCoverage');coverage.replaceChildren(label,element('small','',context.synthetic?'Sentetik örnek · Gerçek trafik değildir.':'Son yüklenen olay sayfası · Tüm veri kümesi değildir.'));
-    renderGeo();if(eventMode())geoOverview();
+    stopReplay();geoipRevision++;allItems=events;geoipItems=[];context=scope;time.value='100';applyFilters();if(geoipMode())loadGeoIP();
   }
   $('#atlasMode').addEventListener('change',setMode);
   $('#atlasExplorer').addEventListener('click',()=>onExplore());

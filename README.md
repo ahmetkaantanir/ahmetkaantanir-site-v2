@@ -1,4 +1,12 @@
-# Log Intelligence Lab V5
+# Log Intelligence Lab V6
+
+## Entegrasyon ve araştırma merkezi
+
+Paylaşılan geliştirme önerilerine göre mevcut SOC genişletildi: Grafana/Loki/GNS3/Wazuh adaptörleri, kalıcı dosya collector'ı, Zeek/Wazuh/Cloudflare/Cowrie/paket metaverisi desteği, modül ekranları, Sigma JSON denemeleri, rol bazlı API erişimi, GeoIP için ayrı tahmin modu, zaman oynatma ve özgün kanıt paketi doğrulaması eklendi.
+
+**Kurulum ve özelliklerin gerçek kapsamı:** [V6 entegrasyon rehberi](./INTEGRATIONS.md). Grafana, Loki, Alloy, Prometheus ve Linux node-exporter için [Compose yığını](./deploy/compose.yaml) bulunur. GNS3 cihazları, Wazuh ve yerel AI modeli ayrı servislerdir. Yapılandırılmamış servisler bağlı veya canlı gibi gösterilmez. AbuseIPDB/VirusTotal sorguları ayrıca açık IP paylaşım onayı gerektirir.
+
+SOC menüsünde **Entegrasyon ve Lab** alanını açın. Harici servis olmadan modül ekranları özel SOC veritabanındaki kayıtlarla çalışır; **Örnek SOC görünümü** yalnızca mevcut sentetik kayıtları gösterir. Kurulum dosyaları Docker bulunmayan geliştirme ortamında servis olarak çalıştırılmamıştır; canlı servis doğrulaması dağıtım ortamında yapılmalıdır.
 
 ## Sade arayüz, dil ve tema
 
@@ -134,7 +142,7 @@ Bu repo bir \`render.yaml\` tanımlar. Render Blueprint üzerinden oluşturulurk
 2. IP istihbaratı ve GeoIP yoksa **unknown** gösterilir; uydurma temiz/zararlı veya ülke puanı verilmez.
 3. Saat dilimi bilinmeyen olaylar zamana dayalı korelasyonda kullanılmaz.
 4. SOC çalışması gerçek kişisel veri içerebileceğinden yasal izin olmadan internete yüklemeyin.
-5. Dış AI/tehdit istihbaratı çağrısı yapılmaz. \`/explain\` sabit, denetlenebilir öneriler üretir.
+5. Varsayılan akışta dış AI/tehdit istihbaratı çağrısı yapılmaz. \`/explain\` sabit öneriler üretir; V6'nın ayrı model ve harici IP sorguları açık kullanıcı işlemi ve sunucu yapılandırması gerektirir.
 6. Şeffaf limitler: 5MB HTTP yükleme, 10.000 olay, 16.384 karakter/satır.
 
 ## Testler

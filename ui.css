@@ -4,6 +4,7 @@
 .preferences{display:flex;gap:8px;align-items:center;flex-shrink:0}
 .preferences select,.preferences button{font:inherit;font-size:12px;min-height:40px;border:1px solid var(--line-strong,#35465b);border-radius:9px;color:var(--text,#eaf2fb);background:var(--surface-strong,#142235);padding:8px 11px;cursor:pointer}
 .preferences select{max-width:72px}.preferences button{min-width:94px}
+#themeToggle{display:inline-flex;align-items:center;justify-content:center;gap:7px}#themeToggle svg{width:18px;height:18px;flex-shrink:0}#themeToggle[aria-pressed="true"] svg{color:#996011}.hunt-purpose{line-height:1.8}.hunt-details{width:100%;margin-top:10px;font-size:11px}.hunt-details summary{cursor:pointer;color:var(--teal,#00d1b7);padding:8px 0}.hunt-details code{display:block;white-space:normal;overflow-wrap:anywhere;padding:10px;border:1px solid var(--stroke,#26364a);border-radius:7px;font-size:10px}.hunt-details p{font-size:11px;margin-top:8px}
 .visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 body{background:var(--bg);line-height:1.65}
 .noise,.bg-canvas{display:none}

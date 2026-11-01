@@ -73,8 +73,13 @@
     for(const root of roots){
       const select=root.querySelector('#languageSelect');if(select)select.value=language;
       const button=root.querySelector('#themeToggle');if(button){
-        button.textContent=theme==='dark'?'Açık tema':'Koyu tema';
+        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.7');
+        const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('d',theme==='dark'?'M20.4 14A8.5 8.5 0 0 1 10 3.6 8.5 8.5 0 1 0 20.4 14Z':'M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z');
+        svg.append(path);const label=document.createElement('span');label.textContent=theme==='dark'?'Koyu':'Açık';button.replaceChildren(svg,label);
         button.setAttribute('aria-label',theme==='dark'?'Açık temaya geç':'Koyu temaya geç');
+        button.setAttribute('title',theme==='dark'?'Koyu görünüm açık. Açık görünüme geç.':'Açık görünüm açık. Koyu görünüme geç.');
         button.setAttribute('aria-pressed',String(theme==='light'));
       }
       visit(root);

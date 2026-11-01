@@ -37,7 +37,7 @@
       shadow.append(scoped,content);
       // Let the atlas keep its location cards and fallback when WebGL assets fail.
       await Promise.all([...css,script('/vendor/maplibre/maplibre-gl-csp.js').catch(()=>{}),script('/geo.js'),script('/soc.js')]);
-      await script('/atlas.js');
+      await script('/platform-ui.js');await script('/atlas.js');
       window.initSocWorkspace(shadow);content.inert=false;loaded=true;mount.dataset.ready='true';
       document.dispatchEvent(new CustomEvent('soc-workspace-ready'));
     }catch(error){

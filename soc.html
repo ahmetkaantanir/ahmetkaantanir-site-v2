@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/soc.css"><link rel="stylesheet" href="/ui.css">
   <script src="/vendor/maplibre/maplibre-gl-csp.js" defer></script>
   <script src="/translations.js" defer></script><script src="/ui.js" defer></script><script src="/geo.js" defer></script><script src="/soc.js" defer></script>
-  <script src="/atlas.js" defer></script>
+  <script src="/platform-ui.js" defer></script><script src="/atlas.js" defer></script>
 </head>
 <body>
 <div class="app">
@@ -26,7 +26,7 @@
       <a href="#rules-section" class="navitem"><span>⬡</span> Detection Rules</a>
       <a href="#audit-section" class="navitem"><span>◷</span> Audit Trail</a>
     </nav>
-    <div class="side-foot"><div class="statusdot"></div> Private workspace <small>V5 · evidence-first analysis</small><p>Bir alarm kesin saldırı kanıtı değildir. Her bulguyu loglar ve sistem bağlamıyla doğrulayın.</p></div>
+    <div class="side-foot"><div class="statusdot"></div> Private workspace <small>V6 · evidence-first analysis</small><p>Bir alarm kesin saldırı kanıtı değildir. Her bulguyu loglar ve sistem bağlamıyla doğrulayın.</p></div>
   </aside>
   <main class="main">
     <header class="topbar"><div><span class="crumb">SECURITY / <b>OPERATIONS CENTER</b></span><h1>Security Intelligence</h1><p>Gerçek olayları görün. Tehditleri ilişkilendirin. Kanıtla karar verin.</p></div><div class="top-actions"><div class="preferences"><label class="visually-hidden" for="languageSelect">Dil / Language</label><select id="languageSelect" aria-label="Dil / Language"><option value="tr">TR</option><option value="en">EN</option></select><button id="themeToggle" type="button" aria-label="Açık temaya geç" aria-pressed="false">Açık tema</button></div><a href="/#project-faq" class="button ghost">Proje kapsamı</a><span id="connection" class="connection">● Bağlı değil</span><a href="/" class="button ghost">← Ana platform</a></div></header>
@@ -71,7 +71,7 @@
       <div class="panelhead"><div><span>02 / INGESTION</span><h2>Logları güvenle incele</h2><p>Web · Linux Auth · Firewall · Windows Event · Sysmon · Suricata EVE · DNS JSON</p></div><span class="tag">UTF-8 · 5 MB · 10K satır</span></div>
       <label class="fieldlabel" for="raw">HAM LOG GİRDİSİ</label>
       <textarea id="raw" spellcheck="false" placeholder='{"timestamp":"2026-10-31T08:30:00Z","EventID":4625,"ip":"192.0.2.10","user":"analyst"}'></textarea>
-      <div class="toolrow"><label class="filewrap">📄 <span>Dosya seç (.log, .txt, .json)</span><input type="file" id="file" accept=".log,.txt,.json"></label><button id="demo" class="button ghost">Örnek senaryo</button><button id="analyze" class="button primary">Analiz başlat →</button></div>
+      <div class="toolrow"><label class="filewrap">📄 <span>Dosya seç (.log, .txt, .json, .jsonl)</span><input type="file" id="file" accept=".log,.txt,.json,.jsonl,.ndjson"></label><button id="demo" class="button ghost">Örnek senaryo</button><button id="analyze" class="button primary">Analiz başlat →</button></div>
       <pre id="ingestResult" class="output" hidden></pre>
       <p class="disclaimer">Orijinal kayıt SHA-256 özetiyle tanımlanır. Zaman dilimi bilinmeyen olaylar zaman korelasyonuna alınmaz. Dış tehdit istihbaratı veya yapay zekâ API'sine veri gönderilmez.</p>
     </section>

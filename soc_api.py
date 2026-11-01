@@ -9,8 +9,10 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 from soc_engine import RULES, inspect
+from platform_auth import principal, permitted
+from integrations.platform import create_platform_blueprint
 
 STATUSES = {"new", "investigating", "resolved", "false_positive"}
 
@@ -61,6 +63,9 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
             id INTEGER PRIMARY KEY, kind TEXT NOT NULL, value TEXT NOT NULL,
             label TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(kind,value)
         );
+        CREATE TABLE IF NOT EXISTS soc_raw_batches (
+            batch_id INTEGER PRIMARY KEY REFERENCES soc_batches(id), raw_text TEXT NOT NULL
+        );
         """)
     try:
         os.chmod(db_path, 0o600)
@@ -72,15 +77,18 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
 
     def audit(conn, action, subject):
         conn.execute("INSERT INTO soc_audit(at,action,subject) VALUES (?,?,?)",
-                     (now(), action[:64], str(subject)[:180]))
+                     (now(), action[:64], (str(subject) + ' | actor=' + g.soc_principal['name'])[:180]))
 
     @bp.before_request
     def require_key():
-        key = os.getenv("LOG_LAB_API_KEY", "")
-        if not key or len(key) < 24:
+        if not os.getenv("LOG_LAB_PRINCIPALS") and len(os.getenv("LOG_LAB_API_KEY", "")) < 24:
             return jsonify({"error": "SOC workspace is disabled until a strong LOG_LAB_API_KEY is configured"}), 503
-        if not hmac.compare_digest(request.headers.get("X-API-Key", "").encode('utf-8'), key.encode('utf-8')):
+        identity = principal(request.headers.get("X-API-Key", ""))
+        if not identity:
             return jsonify({"error": "Unauthorized"}), 401
+        g.soc_principal = identity
+        if not permitted(identity, request.method, request.path):
+            return jsonify({"error": "This role cannot perform the requested action"}), 403
 
     @bp.get("/rules")
     def rules():
@@ -90,7 +98,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
     def ingest():
         file = request.files.get("file")
         if file is not None:
-            if not file.filename or file.filename.rsplit(".", 1)[-1].lower() not in {"log", "txt", "json"}:
+            if not file.filename or file.filename.rsplit(".", 1)[-1].lower() not in {"log", "txt", "json", "jsonl", "ndjson"}:
                 return jsonify({"error": "Only .log, .txt, .json files allowed"}), 400
             raw = file.read(5 * 1024 * 1024 + 1)
             if len(raw) > 5 * 1024 * 1024:
@@ -112,6 +120,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
             return jsonify({"error": str(exc)}), 400
         moment = now()
         with connection() as db:
+            db.execute("BEGIN IMMEDIATE")
             existing = db.execute("SELECT id FROM soc_batches WHERE sha256=?", (result["sha256"],)).fetchone()
             if existing:
                 return jsonify({"batch_id": existing["id"], "duplicate": True, "sha256": result["sha256"],
@@ -120,6 +129,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
                 "INSERT INTO soc_batches(created_at,source,sha256,event_count,alert_count,risk) VALUES (?,?,?,?,?,?)",
                 (moment, source, result["sha256"], result["total"], len(result["alerts"]), result["risk"]))
             batch = cur.lastrowid
+            db.execute("INSERT INTO soc_raw_batches(batch_id,raw_text) VALUES (?,?)", (batch, text))
             db.executemany(
                 "INSERT INTO soc_events(batch_id,event_id,timestamp,source,ip,user_name,raw_json) VALUES (?,?,?,?,?,?,?)",
                 [(batch, e["event_id"], e["timestamp"], e["source"], e["ip"], e["user"],
@@ -346,4 +356,5 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
             rows = db.execute("SELECT at,action,subject FROM soc_audit ORDER BY id DESC LIMIT 100").fetchall()
         return jsonify({"items": [dict(r) for r in rows]})
 
+    bp.register_blueprint(create_platform_blueprint(connection, audit))
     return bp

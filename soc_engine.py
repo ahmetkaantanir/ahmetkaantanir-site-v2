@@ -27,6 +27,10 @@ RULES = {
     "PROC-001": {"name": "Encoded PowerShell command indicator", "severity": "high", "mitre": "T1059.001"},
     "WIN-002": {"name": "Windows user account created", "severity": "medium", "mitre": "T1136.001"},
     "WIN-003": {"name": "Windows scheduled task created", "severity": "medium", "mitre": "T1053.005"},
+    "WIN-004": {"name": "Windows account lockout", "severity": "medium", "mitre": "T1110"},
+    "DNS-001": {"name": "Long DNS label indicator", "severity": "medium", "mitre": "T1071.004"},
+    "END-001": {"name": "Wazuh rule alert", "severity": "medium", "mitre": None},
+    "HNY-001": {"name": "Honeypot authentication activity", "severity": "medium", "mitre": "T1110"},
 }
 WEB_PATTERNS = {
     "SQLi": re.compile(r"\bunion\s+select\b|\binformation_schema\b|\bsleep\s*\(", re.I),
@@ -139,9 +143,45 @@ def normalize(line: str, number: int) -> dict[str, Any]:
             response = item.get('responseElements')
             if e['action'] == 'ConsoleLogin' and isinstance(response, dict):
                 e.update(action='login', outcome='success' if response.get('ConsoleLogin') == 'Success' else 'failure' if response.get('ConsoleLogin') == 'Failure' else 'unknown')
+        # Zeek JSON, Wazuh alerts, Cloudflare Logpush, Cowrie and tshark JSONL.
+        if 'id.orig_h' in item and ('uid' in item or 'ts' in item):
+            e.update(source='zeek', ip=_ip(item.get('id.orig_h')), timestamp=_timestamp(item.get('ts')),
+                     action=_field(item.get('_path') or item.get('service') or 'connection'),
+                     port=item.get('id.resp_p'), destination_ip=_ip(item.get('id.resp_h')),
+                     flow_id=_field(item.get('uid')))
+            if isinstance(item.get('query'), str):
+                e.update(source='dns', action='dns_query', domain=item['query'][:512])
+        if isinstance(item.get('rule'), dict) and isinstance(item.get('agent'), dict):
+            agent = item['agent']
+            e.update(source='wazuh', host=_field(agent.get('name')), ip=_ip(agent.get('ip')),
+                     action='wazuh_rule', provider_rule=_field(item['rule'].get('id')))
+            e['tags'].append('wazuh_alert')
+        if item.get('ClientIP') and ('RayID' in item or 'ClientRequestURI' in item):
+            e.update(source='cloudflare', ip=_ip(item['ClientIP']), action=_field(item.get('ClientRequestURI')),
+                     timestamp=_timestamp(item.get('EdgeStartTimestamp')/1e9 if isinstance(item.get('EdgeStartTimestamp'), (int,float)) else item.get('EdgeStartTimestamp')))
+        if str(item.get('eventid', '')).startswith('cowrie.'):
+            e.update(source='cowrie', action=_field(item['eventid']), ip=_ip(item.get('src_ip')))
+            if item['eventid'] in {'cowrie.login.failed', 'cowrie.login.success'}:
+                e['tags'].append('honeypot_login')
+        layers = item.get('_source', {}).get('layers') if isinstance(item.get('_source'), dict) else None
+        if isinstance(layers, dict):
+            ip_layer = layers.get('ip', {})
+            frame_layer = layers.get('frame', {})
+            if isinstance(ip_layer, dict) and isinstance(frame_layer, dict):
+                e.update(source='pcap', ip=_ip(ip_layer.get('ip.src')), destination_ip=_ip(ip_layer.get('ip.dst')),
+                         timestamp=_timestamp(float(frame_layer['frame.time_epoch'])) if str(frame_layer.get('frame.time_epoch','')).replace('.','',1).isdigit() else None,
+                         action='packet_metadata')
+        if code == '4740':
+            e['tags'].append('account_lockout')
+        if isinstance(item.get('dns'), dict):
+            dns = item['dns']
+            if isinstance(dns.get('rrname'), str):
+                e['domain'] = dns['rrname'][:512]
+        if e.get('domain') and any(len(label)>=50 for label in e['domain'].split('.')):
+            e['tags'].append('long_dns_label')
         if e["status"] in (401, 403) and e["outcome"] == "unknown":
             e["outcome"] = "failure"
-        port = item.get("dest_port", item.get("port"))
+        port = e.get('port') or item.get("dest_port", item.get("port"))
         try:
             port = int(port)
             e["port"] = port if 1 <= port <= 65535 else None
@@ -166,6 +206,17 @@ def normalize(line: str, number: int) -> dict[str, Any]:
                 if m:
                     e.update(source="firewall", ip=_ip(m["ip"]), action="network_connection",
                              port=int(m["port"]))
+                elif 'filterlog:' in line:
+                    # pfSense/OPNsense IPv4 filterlog CSV; unknown layouts stay unknown.
+                    fields = line.split('filterlog:',1)[1].strip().split(',')
+                    if len(fields)>=22 and fields[8]=='4' and fields[6] in {'pass','block'}:
+                        try:
+                            port = int(fields[21])
+                            e.update(source='firewall',ip=_ip(fields[18]),destination_ip=_ip(fields[19]),
+                                     action=fields[6],outcome='failure' if fields[6]=='block' else 'unknown',
+                                     port=port if 1<=port<=65535 else None)
+                        except ValueError:
+                            pass
         # Syslog without year or zone does not carry a forensically trustworthy timestamp.
         if ISO.match(line):
             m = re.match(r"^(\S+)\s+", line)
@@ -215,6 +266,13 @@ def inspect(raw_text: str) -> dict[str, Any]:
             alerts.append(_alert('WIN-002', [e], 'Account creation (4720); verify change approval and the creating account.'))
         if 'task_created' in e['tags']:
             alerts.append(_alert('WIN-003', [e], 'Scheduled task creation (4698); review task XML, executable and author.'))
+        for tag, rule, reason in [
+            ('account_lockout', 'WIN-004', 'Account lockout (4740); investigate authentication history.'),
+            ('long_dns_label', 'DNS-001', 'DNS label of 50 or more characters; tunneling is not established.'),
+            ('wazuh_alert', 'END-001', 'Upstream Wazuh rule matched; inspect source rule and agent context.'),
+            ('honeypot_login', 'HNY-001', 'Authentication recorded by an explicitly identified Cowrie honeypot.')]:
+            if tag in e['tags']:
+                alerts.append(_alert(rule, [e], reason))
     by_ip: dict[str, list[dict]] = defaultdict(list)
     for e in events:
         if e["ip"] and e["timestamp"]:
@@ -231,7 +289,7 @@ def inspect(raw_text: str) -> dict[str, Any]:
             failures = [x for x in window if x["outcome"] == "failure" and x["action"] == "login"]
             logins = [x for x in window if x["action"] == "login"]
             users = {x["user"] for x in failures if x["user"]}
-            port_events = [x for x in window if x["source"] in ("firewall", "suricata") and x["port"]]
+            port_events = [x for x in window if x["source"] in ("firewall", "suricata", "zeek") and x["port"]]
             ports = {x["port"] for x in port_events}
             web_events = [x for x in window if x["source"] == "web"]
             if len(failures) >= 10 and "AUTH-001" not in emitted:
@@ -250,6 +308,15 @@ def inspect(raw_text: str) -> dict[str, Any]:
             if len(web_events) >= 100 and "WEB-002" not in emitted:
                 alerts.append(_alert("WEB-002", web_events[-100:], "Unusually many web requests from one source in 5 minutes."))
                 emitted.add("WEB-002")
+    levels = {'low': 0, 'medium': 1, 'high': 2, 'critical': 3}
+    event_levels = {}
+    for alert in alerts:
+        for event_id in alert['event_ids']:
+            previous = event_levels.get(event_id)
+            if previous is None or levels[alert['severity']] > levels[previous]:
+                event_levels[event_id] = alert['severity']
+    for e in events:
+        e['severity'] = event_levels.get(e['event_id'])
     counts = Counter(e["source"] for e in events)
     severities = {a["severity"] for a in alerts}
     risk = "critical" if "critical" in severities else "high" if "high" in severities else "medium" if alerts else "low"

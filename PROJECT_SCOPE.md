@@ -29,10 +29,12 @@ Harita `raw` JSON kaydındaki `source.geo.location` / `destination.geo.location`
 }
 ```
 
-- IP'den ülke veya konum tahmini yapılmaz. Otomatik GeoIP servisi veya gizli bir dış zenginleştirme çağrısı yoktur.
+- Evidence modunda IP'den ülke veya konum tahmini yapılmaz. V6'daki ayrı GeoIP modu, yönetici tarafından yapılandırılmış yerel feed'den açıkça etiketlenen tahminleri gösterir; özgün logu değiştirmez. Otomatik dış zenginleştirme çağrısı yoktur.
 - Koordinatlar log üreticisinin beyanıdır; tarafımızdan doğrulanmış adres veya saldırgan kimliği değildir.
 - Bir çizgi, aynı olayda bildirilen iki ucu bağlar; gerçek ağ rotası, paket ölçümü veya saldırı yönü değildir.
 - Örnek modda 18 sentetik olayın 3'ünde koordinat vardır. Kalan 15 olay haritaya uydurma nokta olarak eklenmez.
+
+V6 entegrasyon, collector, rol, isteğe bağlı AI/harici istihbarat ve deneysel UEBA kapsamı için [entegrasyon rehberine](./INTEGRATIONS.md) bakın. Harici IP sorguları kullanıcı onayı, AI özetleri açık model çağrısı gerektirir. Yapılandırma bulunmaması güvenlik sonucu veya sağlıklı servis sayılmaz.
 - Harita bütün kayıtları toplamaz: son yüklenen, en fazla 100 olaylık Explorer sayfasını izler. Filtre veya sayfa değişince kapsam ve çizimler yenilenir.
 - Aynı konumdaki kaynak ve hedefler birlikte gruplanır; sayı tekil olay sayısıdır. Karışık uçlar ayrı renkle gösterilir.
 - Eğitim amaçlı coğrafi referanslar ayrı moddur; olay haritasına karıştırılmaz.

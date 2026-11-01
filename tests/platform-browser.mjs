@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict';
+import {chromium, expect} from 'playwright/test';
+const base=process.env.TEST_BASE_URL||'http://127.0.0.1:5056';
+const key=process.env.SOC_TEST_KEY;
+assert.ok(key,'Set SOC_TEST_KEY for an isolated local test database');
+const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
+const page=await browser.newPage({viewport:{width:1440,height:1000},locale:'tr-TR',reducedMotion:'reduce'});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+try{
+  await page.goto(base+'/soc',{waitUntil:'domcontentloaded'});
+  await page.locator('#demoWorkspace').click();
+  await page.locator('.navitem[href="#platform"]').click();
+  await expect(page.locator('#integrationCards .rule')).toHaveCount(4);
+  await page.locator('[data-module="network"]').click();
+  await expect(page.locator('#platformResults button')).toHaveCount(3);
+  await page.locator('#queryLoki').click();
+  await expect(page.locator('#platformOutput')).toContainText('özel API');
+  // Switch sessions clears the module's data and polling, including failed login.
+  await page.locator('#liveMonitor').selectOption('on');
+  await page.locator('#apiKey').fill(key);await page.locator('#connect').click();
+  await expect(page.locator('#connection')).toContainText('Güvenli');
+  await expect(page.locator('#liveMonitor')).toHaveValue('off');
+  const raw=JSON.stringify({timestamp:'2026-11-01T12:00:00Z',EventID:1102,host:'test-platform-host',ip:'192.0.2.8'});
+  const res=await page.request.post(base+'/api/soc/ingest',{headers:{'X-API-Key':key},data:{raw_logs:raw}});assert.ok([200,201].includes(res.status()));
+  const batch=await res.json();
+  await page.locator('[data-module="ad"]').click();
+  await expect(page.locator('#platformResults')).toContainText('test-platform-host');
+  await page.locator('#platformResults button').first().click();
+  await expect(page.locator('#evidence')).toBeVisible();
+  await page.locator('#evidenceActions button').filter({hasText:'Grafana / Lab'}).click();
+  await expect(page.locator('#platform')).toBeVisible();
+  await page.locator('#manifestBatch').fill(String(batch.batch_id));
+  const manifestDownload=page.waitForEvent('download');await page.locator('#manifestExport').click();
+  assert.match((await manifestDownload).suggestedFilename(),/evidence-batch/);
+  await expect(page.locator('#platformOutput')).toContainText('"original_sha256_verified": true');
+  await page.locator('#platform details summary').click();
+  await page.locator('#sigmaRule').fill(JSON.stringify({title:'Audit clear',detection:{selection:{EventID:1102},condition:'selection'}}));
+  await page.locator('#testSigma').click();await expect(page.locator('#platformResults button')).not.toHaveCount(0);
+  await page.locator('#queryLoki').click();await expect(page.locator('#platformOutput')).toContainText('not configured');
+  // A returned GNS3 topology is a read-only device-to-host investigation entry.
+  await page.route('**/api/soc/platform/gns3/projects',route=>route.fulfill({json:{items:[{project_id:'11111111-1111-1111-1111-111111111111',name:'Test lab'}]}}));
+  await page.route('**/api/soc/platform/gns3/projects/*/topology',route=>route.fulfill({json:{nodes:[{node_id:'node1',name:'test-platform-host',status:'started',x:0,y:0}],links:[]}}));
+  await page.locator('#loadGns').click();await expect(page.locator('#gnsProject option')).toHaveCount(1);
+  await page.locator('#loadTopology').click();await page.locator('.network-node').click();
+  await expect(page.locator('#fHost')).toHaveValue('test-platform-host');await expect(page.locator('#eventsBody')).toContainText('windows');
+  await page.route('**/api/soc/platform/geoip?*',route=>route.fulfill({json:{items:[{ip:'192.0.2.8',location:[29,41],source:'Synthetic test GeoIP',updated_at:'2026-11-01',approximate:true}]}}));
+  await page.locator('.navitem[href="#intelligence"]').click();
+  await page.locator('#atlasMode').selectOption('geoip');
+  await expect(page.locator('#geoCoverage')).toContainText('1 / 1');
+  await page.locator('.geo-location').first().click();
+  await expect(page.locator('#geoDetail')).toContainText('Synthetic test GeoIP');
+  await page.locator('.geo-evidence').first().click();
+  const original=JSON.parse(await page.locator('#evidence').textContent());
+  assert.equal(original._geoip,undefined);assert.equal(JSON.parse(original.raw).host,'test-platform-host');
+  assert.equal(JSON.parse(original.raw).source,undefined,'GeoIP must never rewrite original log evidence');
+  await page.locator('.navitem[href="#platform"]').click();
+  for(const width of [360,768,1440]){await page.setViewportSize({width,height:900});await page.waitForTimeout(50);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Module overflow at '+width);}
+  await page.locator('#languageSelect').selectOption('en');
+  await expect(page.locator('#queryLoki')).toHaveText('Query Loki');
+  assert.deepEqual(errors,[]);console.log('Platform passed: demo isolation, adapters, modules, evidence context, hash download, Sigma, GNS3 host filtering, polling reset and responsive layout.');
+}finally{await browser.close();}

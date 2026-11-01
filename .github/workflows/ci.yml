@@ -22,12 +22,13 @@ jobs:
           LOG_LAB_DB_PATH: /tmp/log-lab-ci.db
           LOG_LAB_API_KEY: ci-secret-long-enough-for-automated-tests
         run: |
-          python -m compileall -q app.py log_engine.py soc_api.py soc_engine.py
+          python -m compileall -q app.py log_engine.py soc_api.py soc_engine.py platform_auth.py integrations collectors
           python -m pytest -q
       - name: Check JavaScript syntax
         run: |
           node --check script.js
           node --check soc.js
+          node --check platform-ui.js
           node --check atlas.js
           node --check workspace-embed.js
           node --check ui.js

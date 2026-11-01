@@ -19,6 +19,11 @@ on:
       - tests/ui-browser.mjs
       - style.css
       - soc.js
+      - platform-ui.js
+      - tests/platform-browser.mjs
+      - integrations/**
+      - collectors/**
+      - platform_auth.py
       - atlas.js
       - soc.css
       - vendor/maplibre/**
@@ -60,6 +65,7 @@ jobs:
       - name: Start isolated application
         env:
           LOG_LAB_DB_PATH: /tmp/log-lab-ui.db
+          LOG_LAB_API_KEY: isolated-browser-test-key-at-least-32-characters
         run: |
           python -m flask --app app run --host 127.0.0.1 --port 5056 > /tmp/log-lab-ui.log 2>&1 &
           for i in {1..30}; do
@@ -69,6 +75,9 @@ jobs:
           cat /tmp/log-lab-ui.log
           exit 1
       - name: Test analysis, reports, languages, themes and responsive layouts
+        env:
+          SOC_TEST_KEY: isolated-browser-test-key-at-least-32-characters
         run: |
           node tests/ui-browser.mjs
           node tests/atlas-browser.mjs
+          node tests/platform-browser.mjs

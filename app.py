@@ -158,7 +158,7 @@ def create_app() -> Flask:
                             'vendor/maplibre/maplibre-gl-csp.js',
                             'vendor/maplibre/maplibre-gl-csp-worker.js',
                             'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre/LICENSE.txt', 'workspace-embed.js',
-                            'ui.js', 'ui.css', 'translations.js', 'geo.js', 'vendor/world-land.geojson'}:
+                            'ui.js', 'ui.css', 'translations.js', 'geo.js', 'platform-ui.js', 'vendor/world-land.geojson'}:
             return _json_error('Not found', 404)
         return send_from_directory(BASE_DIR, filename)
 
@@ -177,6 +177,9 @@ def create_app() -> Flask:
 
     @app.after_request
     def apply_security_headers(resp: Response) -> Response:
+        if request.path.startswith('/api/soc/'):
+            resp.headers['Cache-Control'] = 'no-store'
+            resp.vary.add('X-API-Key')
         resp.headers['X-Content-Type-Options'] = 'nosniff'
         resp.headers['X-Frame-Options'] = 'DENY'
         resp.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'

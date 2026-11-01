@@ -1,6 +1,25 @@
 'use strict';
 // UI copy only. Evidence, uploaded logs, secrets and API values are never translated.
 window.labEnglish = Object.fromEntries(`
+Koyu|Dark
+Açık|Light
+Koyu görünüm açık. Açık görünüme geç.|Dark appearance is active. Switch to light appearance.
+Açık görünüm açık. Koyu görünüme geç.|Light appearance is active. Switch to dark appearance.
+Kimler giriş yapamıyor?|Who is failing to sign in?
+Başarısız login kayıtlarını listeler. Tek başına brute force veya hesap ele geçirme kararı vermez.|Lists failed login records. It does not by itself determine brute force or account compromise.
+PowerShell nerede kullanılmış?|Where was PowerShell used?
+Ham metninde powershell geçen kayıtları bulur. Meşru yönetim işlemleri de sonuçlara girebilir.|Finds records containing powershell in their raw text. Legitimate administrative activity may also match.
+Yeni bir Windows hesabı açılmış mı?|Was a Windows account created?
+Windows 4720 hesap oluşturma olaylarını listeler. Hesabın yetkili olarak açılıp açılmadığını ayrıca kontrol edin.|Lists Windows 4720 account creation events. Check whether the account creation was authorized.
+Zamanlanmış görev oluşturulmuş mu?|Was a scheduled task created?
+Windows 4698 görev oluşturma olaylarını listeler. Görev içeriğinin güvenli olup olmadığını otomatik belirlemez.|Lists Windows 4698 task creation events. It does not automatically determine whether the task is safe.
+AWS hesabında hangi işlemler yapılmış?|What activity occurred in the AWS account?
+CloudTrail olarak ayrıştırılmış olayları listeler. Canlı AWS bağlantısı kurmaz; içe alınmış kayıtları arar.|Lists events parsed as CloudTrail. It searches ingested records and does not connect to a live AWS account.
+Hangi kayıtların kaynağı tanınmamış?|Which records have an unrecognized source?
+Kaynağı unknown olan olayları listeler. Eksik zaman veya IP alanlarının tamamını kapsayan bir sorgu değildir.|Lists events with source unknown. It is not a query for all missing timestamps or IP fields.
+Filtreler ve inceleme önerisi|Filters & investigation guidance
+Eşleşen kayıtları göster →|Show matching records →
+Hazır filtre uygulandı. Yalnızca kayıtlı olaylar aranır; yeni tarama veya saldırı testi başlatılmaz.|Preset filter applied. Only stored events are searched; no new scan or attack test is started.
 Proje kapsamı|Project scope
 Olay konumları ve kanıt kapsamı|Event locations & evidence coverage
 Konum ve IP|Locations & IPs

@@ -7,6 +7,7 @@ const $ = (s) => workspaceRoot.querySelector(s);
 let apiKey = '';
 let workspaceRevision = 0;
 let atlasController;
+let platformController;
 
 let demoMode = false;
 // All data below is synthetic and is only used to preview the user interface.
@@ -66,6 +67,7 @@ async function demoAPI(path, opts = {}) {
   }
   const [endpoint, query] = path.split("?");
   const p = new URLSearchParams(query || "");
+  if(endpoint.startsWith('platform/'))return window.labPlatformDemo(endpoint,demoEvents);
   if (endpoint === "intelligence") return {total:18, missing_time:0, missing_ip:0, unparsed:0, severities:{high:1,medium:1}, timeline:[{hour:'2026-10-31T09',events:18}],
     ips:[{ip:'192.0.2.25',scope:'documentation',events:18,alerts:2,reputation:'unknown'}]};
   if (endpoint === "summary") return {
@@ -175,10 +177,12 @@ function renderEvents(items){
   }
 }
 function showEventEvidence(event){
+  platformController?.context(event);
   openWorkspaceSection('explorer');
   const pre=$('#evidence');pre.hidden=false;put(pre,JSON.stringify(event,null,2));
   const actions=$('#evidenceActions');actions.hidden=false;actions.replaceChildren(element('strong','','Seçili olay'));
   const id=element('code','',event.event_id||'—');actions.append(id);
+  const related=element('button','smallbutton','Grafana / Lab bağlamı');related.addEventListener('click',()=>openWorkspaceSection('platform',true));actions.append(related);
   for(const [field,label]of [['ip','Aynı IP'],['user','Aynı kullanıcı'],['host','Aynı host']])if(event[field]){
     const button=element('button','smallbutton',label);
     button.addEventListener('click',async()=>{
@@ -252,12 +256,14 @@ function renderCases(items){
       catch(e){message(e.message,true);}
     });
     const explain=element('button','smallbutton','Yorum');
+    const ai=element('button','smallbutton','Yapılandırılmış modele özetlet');ai.disabled=demoMode;
+    ai.addEventListener('click',async()=>{try{const r=await api('platform/assistant/'+c.id,{method:'POST',body:JSON.stringify({allow_model:true})});const pre=$('#caseEvidence');pre.hidden=false;put(pre,JSON.stringify(r,null,2));}catch(error){message(error.message,true);}});
     explain.addEventListener('click',async()=>{
       try{const r=await api('cases/'+c.id+'/explain');const pre=$('#caseEvidence');pre.hidden=false;
         put(pre,JSON.stringify(r,null,2));pre.scrollIntoView({behavior:'smooth',block:'nearest'});}
       catch(e){message(e.message,true);}
     });
-    actions.append(save,evidence,explain);
+    actions.append(save,evidence,explain,ai);
     wrap.append(info,select,notes,actions);root.append(wrap);
   }
 }
@@ -301,7 +307,7 @@ async function refreshAll(){
   clearEventFilters();
   try{
     const [summary, events, cases, rules, audit, intelligence, watchlist, health]=await Promise.all([
-      api('summary'),api('events?limit=100'),api('cases'),api('rules'),api('audit'),api('intelligence'),api('watchlist'),api('source-health')
+      api('summary'),api('events?limit=100'),api('cases'),api('rules'),api('audit').catch(()=>({items:[]})),api('intelligence'),api('watchlist'),api('source-health')
     ]);
     if(revision!==workspaceRevision)return;
     put($('#sEvents'),summary.events.toLocaleString('tr-TR'));
@@ -312,6 +318,7 @@ async function refreshAll(){
     renderIntelligence(intelligence);
     renderEventPage(events);renderCases(cases.items);renderRules(rules.rules);renderAudit(audit.items);
     renderWatchlist(watchlist);renderHealth(health);
+    await platformController?.refresh();
     const status=$('#connection');put(status,demoMode ? '● Örnek veriler' : '● Güvenli bağlantı');status.classList.add('online');
     message(demoMode ? 'ÖRNEK MODU: 18 sentetik log, iki örnek alarm; hiçbir gerçek olay sunucuya yüklenmez. Gerçek analiz için Render API anahtarıyla bağlanın.' : 'Bağlantı hazır. Analizler özel SOC veritabanına kaydedilir; yalnızca izinli verileri yükleyin.');
   }catch(error){
@@ -392,6 +399,7 @@ function openWorkspaceSection(id,scroll=false){
   if(id==='intelligence')requestAnimationFrame(()=>$('#globe').atlasMap?.resize());
   if(scroll)target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
 }
+platformController=window.initPlatformUI({root:workspaceRoot,$,api,element,message,evidence:showEventEvidence,explore:async filters=>{clearEventFilters();if(filters.host)$('#fHost').value=filters.host;openWorkspaceSection('explorer',true);try{await refreshEvents(true);}catch(error){message(error.message,true);}}});
 workspaceRoot.querySelectorAll('.navitem').forEach(a=>a.addEventListener('click',(event)=>{
   const target=$(a.getAttribute('href'));
   if(target){event.preventDefault();openWorkspaceSection(target.id,true);}
@@ -476,7 +484,27 @@ const huntPacks=[
   {title:'Bulut kontrol düzlemi',mitre:'CLOUDTRAIL',fields:{source:'cloudtrail'},text:'AWS JSONL olaylarını kimlik, API aksiyonu, kaynak IP ve UTC zamanıyla araştırın.'},
   {title:'Görünürlük boşlukları',mitre:'DATA QUALITY',fields:{source:'unknown'},text:'Ayrıştırılamayan kayıtları bulun. Eksik parser desteği tespit kapsamını azaltır.'},
 ];
-for(const pack of huntPacks){const card=element('article','hunt-card');card.append(element('span','fieldlabel',pack.mitre),element('h3','',pack.title),element('p','',pack.text));const b=element('button','button ghost','Sorguyu çalıştır →');b.addEventListener('click',async()=>{clearEventFilters();const ids={action:'fAction',outcome:'fOutcome',source:'fSource',q:'fQuery'};for(const [k,v] of Object.entries(pack.fields))$('#'+ids[k]).value=v;try{await refreshEvents(true);openWorkspaceSection('explorer');$('#explorer').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}catch(e){message(e.message,true);}});card.append(b);$('#huntPacks').append(card);}
+const huntQuestions=[
+  ['Kimler giriş yapamıyor?','Başarısız login kayıtlarını listeler. Tek başına brute force veya hesap ele geçirme kararı vermez.'],
+  ['PowerShell nerede kullanılmış?','Ham metninde powershell geçen kayıtları bulur. Meşru yönetim işlemleri de sonuçlara girebilir.'],
+  ['Yeni bir Windows hesabı açılmış mı?','Windows 4720 hesap oluşturma olaylarını listeler. Hesabın yetkili olarak açılıp açılmadığını ayrıca kontrol edin.'],
+  ['Zamanlanmış görev oluşturulmuş mu?','Windows 4698 görev oluşturma olaylarını listeler. Görev içeriğinin güvenli olup olmadığını otomatik belirlemez.'],
+  ['AWS hesabında hangi işlemler yapılmış?','CloudTrail olarak ayrıştırılmış olayları listeler. Canlı AWS bağlantısı kurmaz; içe alınmış kayıtları arar.'],
+  ['Hangi kayıtların kaynağı tanınmamış?','Kaynağı unknown olan olayları listeler. Eksik zaman veya IP alanlarının tamamını kapsayan bir sorgu değildir.']
+];
+for(const [index,pack] of huntPacks.entries()){
+  const card=element('article','hunt-card');
+  card.append(element('span','fieldlabel',pack.mitre),element('h3','',huntQuestions[index][0]),element('p','hunt-purpose',huntQuestions[index][1]));
+  const details=element('details','hunt-details');details.append(element('summary','','Filtreler ve inceleme önerisi'),element('code','',Object.entries(pack.fields).map(([key,value])=>`${key} = ${value}`).join(' · ')),element('p','',pack.text));card.append(details);
+  const b=element('button','button ghost','Eşleşen kayıtları göster →');
+  b.addEventListener('click',async()=>{
+    clearEventFilters();const ids={action:'fAction',outcome:'fOutcome',source:'fSource',q:'fQuery'};
+    for(const [key,value]of Object.entries(pack.fields))$('#'+ids[key]).value=value;
+    b.disabled=true;
+    try{await refreshEvents(true);openWorkspaceSection('explorer',true);message('Hazır filtre uygulandı. Yalnızca kayıtlı olaylar aranır; yeni tarama veya saldırı testi başlatılmaz.');$('#search').focus({preventScroll:true});}
+    catch(error){message(error.message,true);}finally{b.disabled=false;}
+  });card.append(b);$('#huntPacks').append(card);
+}
 async function refreshWatchlist(){renderWatchlist(await api('watchlist'));}
 function renderWatchlist(data){
   const body=$('#watchBody');body.replaceChildren();
@@ -509,6 +537,7 @@ $('#exportEvents').addEventListener('click',()=>{
 });
 
 function clearWorkspace(){
+  platformController?.reset();
   clearEventFilters();$('#caseStatus').value='';
   for(const id of ['sEvents','sAlerts','sBatches','sCases'])put($('#'+id),'—');
   for(const id of ['sources','recent','quality','ipBody','cases','rulesList','auditList','watchBody','healthCards','eventTrend','severityBreakdown','investigationGuide'])$('#'+id).replaceChildren();
@@ -519,5 +548,5 @@ function clearWorkspace(){
 }
 
 openWorkspaceSection('intelligence');
-atlasController=window.initSocAtlas({$, atlasPlaces, put, element,onEvidence:showEventEvidence,onExplore:()=>openWorkspaceSection('explorer',true)});
+atlasController=window.initSocAtlas({$, atlasPlaces, put, element,onEvidence:showEventEvidence,onExplore:()=>openWorkspaceSection('explorer',true),onGeoIP:ips=>api('platform/geoip?'+new URLSearchParams({ips:ips.join(',')}))});
 };

@@ -1,0 +1,17 @@
+local.file_match "lab" {
+  path_targets = [
+    {"__path__" = "/var/log/lab/auth.log", "job" = "linux-auth"},
+    {"__path__" = "/var/log/lab/*.jsonl", "job" = "security"},
+  ]
+}
+loki.source.file "lab" {
+  targets    = local.file_match.lab.targets
+  forward_to = [loki.process.lab.receiver]
+}
+loki.process "lab" {
+  stage.label_drop { values = ["filename"] }
+  forward_to = [loki.write.local.receiver]
+}
+loki.write "local" {
+  endpoint { url = "http://loki:3100/loki/api/v1/push" }
+}

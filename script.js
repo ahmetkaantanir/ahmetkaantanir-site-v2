@@ -583,7 +583,7 @@ function clearAll() {
   if (els.kpiTopIp)  els.kpiTopIp.textContent  = '-';
   if (els.statLogs)  els.statLogs.textContent  = '0';
   if (els.statAlerts) els.statAlerts.textContent = '0';
-  if (els.statRisk) { els.statRisk.textContent = 'Düşük'; els.statRisk.className = 'stat-num stat-risk risk-low'; }
+  if (els.statRisk) { els.statRisk.textContent = 'Henüz veri yok'; els.statRisk.className = 'stat-num stat-risk'; }
   if (els.alertsBadge) els.alertsBadge.textContent = '0';
   if (els.corrBadge)   els.corrBadge.textContent   = '0';
 

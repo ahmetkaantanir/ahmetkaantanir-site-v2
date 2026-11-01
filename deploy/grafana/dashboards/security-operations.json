@@ -1,0 +1,20 @@
+{
+  "uid": "log-lab", "title": "Log Intelligence Lab · Security Operations", "schemaVersion": 40,
+  "version": 1, "refresh": "10s", "tags": ["log-intelligence-lab"],
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": [{"name": "host", "type": "textbox", "label": "Exact host (JSON hostname; select an event in SOC)", "query": "", "current": {"text": "", "value": ""}}]},
+  "panels": [
+    {"id":1,"title":"Live Log Monitor","type":"logs","datasource":{"type":"loki","uid":"lab-loki"},"gridPos":{"x":0,"y":0,"w":24,"h":9},"targets":[{"refId":"A","expr":"{job=~\"linux-auth|security\"}"}]},
+    {"id":2,"title":"Authentication · failed SSH","type":"timeseries","datasource":{"type":"loki","uid":"lab-loki"},"gridPos":{"x":0,"y":9,"w":12,"h":7},"targets":[{"refId":"A","expr":"sum(count_over_time({job=\"linux-auth\"} |= \"Failed password\" [5m]))"}]},
+    {"id":3,"title":"Firewall · DROP indicators","type":"timeseries","datasource":{"type":"loki","uid":"lab-loki"},"gridPos":{"x":12,"y":9,"w":12,"h":7},"targets":[{"refId":"A","expr":"sum(count_over_time({job=\"security\"} |= \"DROP\" [5m]))"}]},
+    {"id":4,"title":"Web Security · HTTP 403 (JSON status)","type":"timeseries","datasource":{"type":"loki","uid":"lab-loki"},"gridPos":{"x":0,"y":16,"w":12,"h":7},"targets":[{"refId":"A","expr":"sum(count_over_time({job=\"security\"} | json | __error__=\"\" | status=\"403\" [5m]))"}]},
+    {"id":5,"title":"SOC · Suricata alerts","type":"timeseries","datasource":{"type":"loki","uid":"lab-loki"},"gridPos":{"x":12,"y":16,"w":12,"h":7},"targets":[{"refId":"A","expr":"sum(count_over_time({job=\"security\"} | json | __error__=\"\" | event_type=\"alert\" [5m]))"}]},
+    {"id":6,"title":"Threat Timeline · Wazuh rule matches","type":"timeseries","datasource":{"type":"loki","uid":"lab-loki"},"gridPos":{"x":0,"y":23,"w":12,"h":7},"targets":[{"refId":"A","expr":"sum(count_over_time({job=\"security\"} | json | __error__=\"\" | rule_id!=\"\" [5m]))"}]},
+    {"id":7,"title":"Log Source Health · received volume (not a loss measurement)","type":"timeseries","datasource":{"type":"loki","uid":"lab-loki"},"gridPos":{"x":12,"y":23,"w":12,"h":7},"targets":[{"refId":"A","expr":"sum by (job) (count_over_time({job=~\"linux-auth|security\"}[5m]))"}]},
+    {"id":8,"title":"Host evidence · exact hostname field","type":"logs","datasource":{"type":"loki","uid":"lab-loki"},"gridPos":{"x":0,"y":30,"w":24,"h":8},"targets":[{"refId":"A","expr":"{job=\"security\"} | json | __error__=\"\" | hostname=~\"${host:regex}\""}]},
+    {"id":9,"title":"Linux collector host · CPU utilization %","type":"timeseries","datasource":{"type":"prometheus","uid":"lab-prometheus"},"gridPos":{"x":0,"y":38,"w":8,"h":7},"targets":[{"refId":"A","expr":"100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))"}]},
+    {"id":10,"title":"Linux collector host · RAM utilization %","type":"timeseries","datasource":{"type":"prometheus","uid":"lab-prometheus"},"gridPos":{"x":8,"y":38,"w":8,"h":7},"targets":[{"refId":"A","expr":"100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"}]},
+    {"id":11,"title":"Linux collector host · disk available bytes","type":"timeseries","datasource":{"type":"prometheus","uid":"lab-prometheus"},"gridPos":{"x":16,"y":38,"w":8,"h":7},"targets":[{"refId":"A","expr":"node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"}"}]},
+    {"id":12,"title":"Scope and interpretation","type":"text","gridPos":{"x":0,"y":45,"w":24,"h":4},"options":{"mode":"markdown","content":"Metrics refer to the Linux host mounted into node-exporter (Docker Desktop: Linux VM), not every GNS3 node. Host log filtering expects a JSON hostname field. Source volume is not a loss measurement. Indicators are not confirmed compromise; no data is not low risk."}}
+  ]
+}

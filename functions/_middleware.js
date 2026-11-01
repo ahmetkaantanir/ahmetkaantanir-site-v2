@@ -10,7 +10,7 @@ const PUBLIC_PATHS = new Set([
   "/atlas.js", "/vendor/maplibre/maplibre-gl-csp.js",
   "/workspace-embed.js",
   "/ui.js", "/ui.css", "/translations.js",
-  "/geo.js", "/vendor/world-land.geojson",
+  "/geo.js", "/platform-ui.js", "/vendor/world-land.geojson",
   "/vendor/maplibre/maplibre-gl-csp-worker.js", "/vendor/maplibre/maplibre-gl.css",
   "/vendor/maplibre/LICENSE.txt",
   "/favicon.ico", "/robots.txt",
