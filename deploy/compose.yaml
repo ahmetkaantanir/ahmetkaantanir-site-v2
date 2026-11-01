@@ -10,6 +10,9 @@ services:
       LOG_LAB_PRINCIPALS: '[{"name":"file-collector","role":"collector","key":"${LAB_COLLECTOR_KEY:?Run deploy/setup.ps1 first}"}]'
       LOG_LAB_DB_PATH: /data/analysis.db
       LAB_LOKI_URL: http://loki:3100
+      LAB_LOKI_TOKEN: ${LAB_LOKI_TOKEN:-}
+      LAB_LOKI_USER: ${LAB_LOKI_USER:-}
+      LAB_LOKI_PASSWORD: ${LAB_LOKI_PASSWORD:-}
       LAB_GRAFANA_URL: http://grafana:3000
       LAB_GRAFANA_PUBLIC_URL: ${LAB_GRAFANA_PUBLIC_URL:-http://127.0.0.1:3000}
       LAB_ALLOW_PRIVATE_HTTP: "true"

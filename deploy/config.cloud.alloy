@@ -1,0 +1,25 @@
+local.file_match "lab_cloud" {
+  path_targets = [
+    {"__path__" = sys.env("LAB_AUTH_LOG"), "job" = "linux-auth"},
+    {"__path__" = sys.env("LAB_SECURITY_LOG"), "job" = "security"},
+  ]
+}
+loki.source.file "lab_cloud" {
+  targets    = local.file_match.lab_cloud.targets
+  forward_to = [loki.process.lab_cloud.receiver]
+}
+loki.process "lab_cloud" {
+  stage.label_drop {
+    values = ["filename"]
+  }
+  forward_to = [loki.write.lab_cloud.receiver]
+}
+loki.write "lab_cloud" {
+  endpoint {
+    url = sys.env("LAB_LOKI_PUSH_URL")
+    basic_auth {
+      username = sys.env("LAB_LOKI_WRITE_USER")
+      password = sys.env("LAB_LOKI_WRITE_TOKEN")
+    }
+  }
+}

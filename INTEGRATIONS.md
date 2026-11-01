@@ -28,6 +28,29 @@ Bu sürüm, [paylaşılan proje önerilerini](https://chatgpt.com/share/6ae71882
 
 ## 1. Yerel servisler
 
+### Ücretsiz bulut yolu: Grafana Cloud + yerel Alloy
+
+Grafana/Loki için ücretli VPS yerine [Grafana Cloud Free](https://grafana.com/pricing/) kullanılabilir. Belgelenen ücretsiz log kotası aylık 50 GB, saklama süresi 14 gündür; kart eklenmez ve Pro yükseltmesi yapılmaz. Yeni hesapta gösterilen deneme banner'ı sınırsız kullanım taahhüdü değildir; proje ücretsiz plan sınırları içinde tutulmalıdır.
+
+Bulut bağlantısında Render'a `LAB_LOKI_URL`, `LAB_LOKI_USER` (logs instance ID) ve `LAB_LOKI_PASSWORD` (`logs:read` kapsamlı token) verilir. `LAB_LOKI_TOKEN` boş bırakılır; Grafana Cloud sorguları Basic Auth kullanır. `LAB_GRAFANA_URL` ve `LAB_GRAFANA_PUBLIC_URL` cloud stack'in HTTPS adresidir. Dashboard bulut hesabına aktarılırken `lab-loki` veri kaynağı UID'si `grafanacloud-logs`, `lab-prometheus` ise `grafanacloud-prom` ile eşleştirilir. Host metriği gönderen collector ayrıca kurulmadıysa metrik panelleri boş kalır.
+
+Dosya iletimi için Docker/WSL gerekmez: doğrulanmış Alloy Windows v1.10.2 binary'si `deploy/runtime/alloy-windows-amd64.exe` altında çalıştırılır. Bu klasör Git ve Docker build dışındadır. Kontrol toplamı resmî sürümdeki `SHA256SUMS` ile doğrulanmalıdır.
+
+`deploy/.env.grafana` dosyasında aşağıdaki alanlar bulunur; token ayrı `logs:write` politikasına ait olmalı ve sohbete/Git'e yazılmamalıdır:
+
+```dotenv
+LAB_LOKI_PUSH_URL=https://<logs-host>/loki/api/v1/push
+LAB_LOKI_WRITE_USER=<logs-instance-id>
+LAB_LOKI_WRITE_TOKEN=<write-only-token>
+```
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy/run-grafana-cloud.ps1 -ValidateOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy/run-grafana-cloud.ps1
+```
+
+Alloy yalnızca `deploy/logs/auth.log` ve `deploy/logs/security.jsonl` dosyalarını izler; başka sistem dosyalarını toplamaz. Sadece `job` etiketi kullanılır; ham JSON korunur ve Loki zaman damgası collector'ın okuma zamanıdır. Checkpoint'ler `deploy/runtime/alloy-state` içinde kalır. Mevcut SOC collector'ı aynı dosyaları ayrı olarak özel SOC API'sine iletebilir. Bilgisayar kapalıyken yerel dosya iletimi durur; buluttaki panel ve saklanan loglar plan sınırları dahilinde erişilebilir kalır. GNS3/Wazuh bu bulut log planına dahil değildir ve ayrı çalışan bir yerel Linux ortamı gerektirir.
+
 Windows'ta otomatik hazırlık ve tüm yığını (uygulama + kalıcı collector dahil) başlatma:
 
 ```powershell

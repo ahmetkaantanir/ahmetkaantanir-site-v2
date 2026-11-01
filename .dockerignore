@@ -14,5 +14,6 @@ __pycache__
 **/.env.local
 deploy/logs
 deploy/downloads
+deploy/runtime
 tests
 *.png

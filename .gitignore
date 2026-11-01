@@ -41,3 +41,4 @@ Thumbs.db
 *.db-shm
 deploy/logs/
 deploy/feeds/
+deploy/runtime/

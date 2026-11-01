@@ -42,6 +42,9 @@ def service(monkeypatch):
                     self.reply(200, {'data': {'affected_items': [{'id': '001', 'status': 'active'}]}, 'error': 0})
                 else:
                     self.reply(401, {'error': 'unauthorized'})
+            elif self.path == '/loki/api/v1/labels':
+                expected = 'Basic ' + base64.b64encode(b'1859727:cloud-read-token').decode()
+                self.reply(200 if self.headers.get('Authorization') == expected else 401, {'status': 'success', 'data': ['job']})
             elif self.path == '/access':
                 if self.headers.get('CF-Access-Client-Id') == 'test-client' and self.headers.get('CF-Access-Client-Secret') == 'test-secret':
                     self.reply(200, {'ok': True})
@@ -104,3 +107,12 @@ def test_grafana_browser_link_does_not_use_private_docker_origin(monkeypatch):
     monkeypatch.setenv('LAB_GRAFANA_URL', 'https://internal-grafana.example')
     monkeypatch.setenv('LAB_GRAFANA_PUBLIC_URL', 'https://grafana.example')
     assert grafana_link('test-host').startswith('https://grafana.example/d/log-lab/')
+
+
+def test_grafana_cloud_queries_use_instance_id_and_basic_token(service, monkeypatch):
+    base, _ = service
+    monkeypatch.setenv('LAB_LOKI_URL', base)
+    monkeypatch.setenv('LAB_LOKI_USER', '1859727')
+    monkeypatch.setenv('LAB_LOKI_PASSWORD', 'cloud-read-token')
+    monkeypatch.delenv('LAB_LOKI_TOKEN', raising=False)
+    assert fetch_json('loki', '/loki/api/v1/labels')['status'] == 'success'
