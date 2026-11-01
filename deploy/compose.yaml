@@ -1,5 +1,42 @@
 name: log-intelligence-lab
 services:
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports: ["127.0.0.1:5000:5000"]
+    environment:
+      LOG_LAB_API_KEY: ${LOG_LAB_API_KEY:?Run deploy/setup.ps1 first}
+      LOG_LAB_PRINCIPALS: '[{"name":"file-collector","role":"collector","key":"${LAB_COLLECTOR_KEY:?Run deploy/setup.ps1 first}"}]'
+      LOG_LAB_DB_PATH: /data/analysis.db
+      LAB_LOKI_URL: http://loki:3100
+      LAB_GRAFANA_URL: ${LAB_GRAFANA_URL:-http://127.0.0.1:3000}
+      LAB_ALLOW_PRIVATE_HTTP: "true"
+    volumes:
+      - soc-data:/data
+    depends_on: [loki]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  collector:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ["python", "-m", "collectors.file_forwarder", "--file", "/logs/security.jsonl", "--file", "/logs/auth.log", "--state", "/data/collector.db"]
+    environment:
+      LAB_SOC_URL: http://api:5000
+      LAB_COLLECTOR_KEY: ${LAB_COLLECTOR_KEY:?Run deploy/setup.ps1 first}
+      LAB_ALLOW_PRIVATE_HTTP: "true"
+    volumes:
+      - ./logs:/logs:ro
+      - collector-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
   loki:
     image: grafana/loki:3.5.7
     command: -config.file=/etc/loki/config.yaml
@@ -45,6 +82,8 @@ services:
       - /:/host:ro,rslave
     restart: unless-stopped
 volumes:
+  soc-data:
+  collector-data:
   loki-data:
   grafana-data:
   alloy-data:

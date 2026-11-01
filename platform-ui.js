@@ -4,6 +4,7 @@ Object.assign(window.labEnglish||{}, {
   'Entegrasyon ve araştırma merkezi':'Integrations and research center',
   'Aynı log, aynı cihaz, aynı kanıt üzerinden inceleme.':'Investigate the same logs, devices and evidence.',
   'Durumu yenile':'Refresh status', '◈ Entegrasyon ve Lab':'◈ Integrations and Lab',
+  'Entegrasyon ve Lab':'Integrations and Lab',
   'Özel API bağlantısı veya örnek görünüm ile başlayın.':'Start with a private API connection or sample workspace.',
   'Bir modül seçin. Harici servisler sunucu ortamından yapılandırılır.':'Select a module. External services are configured on the server.',
   'Loki sorgula':'Query Loki', 'Grafana panelini aç':'Open Grafana dashboard',
@@ -39,7 +40,7 @@ Object.assign(window.labEnglish||{}, {
   'Dosya seç (.log, .txt, .json, .jsonl)':'Choose file (.log, .txt, .json, .jsonl)'
 });
 /* Shared investigation context for the standalone and embedded SOC. */
-window.initPlatformUI = function({root, $, api, element, message, explore, evidence}) {
+window.initPlatformUI = function({root, $, api, element, message, explore, evidence, openSection}) {
   const section=element('section','panel spacious');section.id='platform';section.hidden=true;
   section.innerHTML=`<div class="panelhead"><div><span>SECURITY OPERATIONS & DIGITAL FORENSICS</span><h2>Entegrasyon ve araştırma merkezi</h2><p>Aynı log, aynı cihaz, aynı kanıt üzerinden inceleme.</p></div><button id="platformRefresh" class="button ghost">Durumu yenile</button></div>
   <div id="integrationCards" class="rulesgrid"><p>Özel API bağlantısı veya örnek görünüm ile başlayın.</p></div>
@@ -62,6 +63,7 @@ window.initPlatformUI = function({root, $, api, element, message, explore, evide
   </div>`;
   root.querySelector('.main > footer').before(section);
   const nav=element('a','navitem','◈ Entegrasyon ve Lab');nav.href='#platform';root.querySelector('.sidebar nav').append(nav);
+  const shortcut=element('button','button primary','Entegrasyon ve Lab');shortcut.id='openPlatform';shortcut.type='button';shortcut.addEventListener('click',()=>openSection('platform',true));root.querySelector('.top-actions').prepend(shortcut);
   for(const name of ['zeek','wazuh','cloudflare','cowrie','pcap']){const option=element('option','',name);option.value=name;$('#fSource').append(option);}
   let active='network', timer, revision=0, currentContext={};
   const definitions={network:['Network Security','Zeek bağlantıları, Suricata alarmları ve firewall kayıtları.'],endpoint:['Endpoint Security','Wazuh, Windows ve Sysmon kanıtları.'],cloud:['Cloud Security','AWS CloudTrail ve Cloudflare Logpush.'],dns:['DNS Threat Lab','DNS sorguları ve uzun etiket göstergeleri.'],web:['Web Attack Analytics','Web erişim kayıtları ve şüpheli istek göstergeleri.'],ad:['Active Directory Lab','4624 / 4625 / 4740 ve diğer Windows kayıtları.'],honeypot:['Honeypot Lab','Ayrı kurulmuş Cowrie laboratuvarından alınan kayıtlar.'],forensics:['Digital Forensics','Paket metaverisi, özgün loglar, hash ve vaka notları.'],ueba:['UEBA Lab','En az dört gözlenen gün üzerinden deneysel hacim karşılaştırması.']};

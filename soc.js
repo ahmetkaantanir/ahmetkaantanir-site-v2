@@ -399,7 +399,7 @@ function openWorkspaceSection(id,scroll=false){
   if(id==='intelligence')requestAnimationFrame(()=>$('#globe').atlasMap?.resize());
   if(scroll)target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
 }
-platformController=window.initPlatformUI({root:workspaceRoot,$,api,element,message,evidence:showEventEvidence,explore:async filters=>{clearEventFilters();if(filters.host)$('#fHost').value=filters.host;openWorkspaceSection('explorer',true);try{await refreshEvents(true);}catch(error){message(error.message,true);}}});
+platformController=window.initPlatformUI({root:workspaceRoot,$,api,element,message,openSection:openWorkspaceSection,evidence:showEventEvidence,explore:async filters=>{clearEventFilters();if(filters.host)$('#fHost').value=filters.host;openWorkspaceSection('explorer',true);try{await refreshEvents(true);}catch(error){message(error.message,true);}}});
 workspaceRoot.querySelectorAll('.navitem').forEach(a=>a.addEventListener('click',(event)=>{
   const target=$(a.getAttribute('href'));
   if(target){event.preventDefault();openWorkspaceSection(target.id,true);}
@@ -547,6 +547,6 @@ function clearWorkspace(){
   $('#watchAdd').disabled=true;renderEventPage({items:[],total:0});
 }
 
-openWorkspaceSection('intelligence');
+openWorkspaceSection(location.hash==='#platform'?'platform':'intelligence');
 atlasController=window.initSocAtlas({$, atlasPlaces, put, element,onEvidence:showEventEvidence,onExplore:()=>openWorkspaceSection('explorer',true),onGeoIP:ips=>api('platform/geoip?'+new URLSearchParams({ips:ips.join(',')}))});
 };

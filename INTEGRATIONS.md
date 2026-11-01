@@ -28,13 +28,20 @@ Bu sürüm, [paylaşılan proje önerilerini](https://chatgpt.com/share/6ae71882
 
 ## 1. Yerel servisler
 
+Windows'ta otomatik hazırlık ve tüm yığını (uygulama + kalıcı collector dahil) başlatma:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy/setup.ps1
+```
+
+Betik yalnızca ilk çalışmada `deploy/.env` içine birbirinden farklı SOC, collector ve Grafana gizli değerleri üretir; bu dosya Git ve Docker build içeriğinden hariç tutulur. Mevcut değerleri değiştirmez. Docker/WSL kurulduktan ve Engine başlatıldıktan sonra aynı komutla devam edilir. Sadece yapılandırmayı hazırlamak için `-PrepareOnly` ekleyin. SOC `http://127.0.0.1:5000/soc#platform`, Grafana `http://127.0.0.1:3000` olur. Bu yerel yığın Render sunucusuna kendiliğinden erişim sağlamaz.
+
 Docker Engine/Compose gereklidir. PowerShell örneği:
 
 ```powershell
 New-Item -ItemType Directory -Force deploy/logs
-$env:GRAFANA_ADMIN_PASSWORD = '<güçlü-yerel-parola>'
-docker compose -f deploy/compose.yaml config --quiet
-docker compose -f deploy/compose.yaml up -d
+docker compose --env-file deploy/.env -f deploy/compose.yaml config --quiet
+docker compose --env-file deploy/.env -f deploy/compose.yaml up -d --build
 ```
 
 Grafana `http://127.0.0.1:3000` (kullanıcı `admin`), Loki `http://127.0.0.1:3100`, Prometheus `http://127.0.0.1:9090`. Portlar yalnızca loopback'e bağlanır. Grafana anonim erişimi kapalıdır; paneller kullanıcı oturumunda ayrı sekmede açılır. Gömmek için anonim panel gerekmez.
