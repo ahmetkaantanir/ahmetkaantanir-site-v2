@@ -63,6 +63,16 @@ Sürüm sabitlenmiş container dosyaları bu geliştirme ortamında Docker olmad
 
 ## 2. Roller ve collector
 
+Canlı site için ayrı collector principal'ı yapılandırıldıysa `deploy/.env.cloud` içindeki `LAB_SOC_URL` ve `LAB_COLLECTOR_KEY` kullanılarak Docker gerekmeksizin Windows'tan iletim yapılabilir:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy/run-cloud.ps1
+```
+
+Bu süreç yalnızca `deploy/logs/auth.log` ve `deploy/logs/security.jsonl` dosyalarını izler; Windows sistem olaylarını veya başka kişisel dosyaları kendiliğinden toplamaz. Kaynak dosyalar boşsa canlı SOC'a örnek/uydurma olay yazmaz. Ayrı outbox durumu `deploy/cloud-collector.db` içinde tutulur. `deploy/.env.cloud` ve DB dosyaları Git dışında tutulur.
+
+Compose içindeki uygulama GNS3, Wazuh, Ollama ve istihbarat ayarlarını `deploy/.env` dosyasından da alır. [Ortam örneğindeki](./.env.example) ilgili `LAB_*` satırlarını bu dosyaya ekleyip kurulum betiğini yeniden çalıştırın. Yerel feed dosyalarını `deploy/feeds` altına koyun; uygulamadaki yollar `/feeds/<dosya>.json` olmalıdır. Bu dizin Git dışında tutulur. Yapılandırma satırı eklemek harici sunucuyu kurmaz veya sağlayıcı hesabı/API anahtarı oluşturmaz.
+
 `LOG_LAB_API_KEY` geriye uyumlu owner/admin anahtarıdır. `LOG_LAB_PRINCIPALS` sunucu ortamında JSON dizi alır:
 
 ```json

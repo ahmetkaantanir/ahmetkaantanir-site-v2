@@ -27,6 +27,7 @@ if (-not (Test-Path -LiteralPath $envFile)) {
     }
 }
 $logDir = Join-Path $PSScriptRoot 'logs'
+New-Item -ItemType Directory -Path (Join-Path $PSScriptRoot 'feeds') -Force | Out-Null
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 foreach ($name in @('auth.log', 'security.jsonl')) {
     $path = Join-Path $logDir $name

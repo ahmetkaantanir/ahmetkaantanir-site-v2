@@ -34,7 +34,10 @@ Thumbs.db
 *.log.tmp
 .env
 .env.local
+.env.*
+!.env.example
 *.db
 *.db-wal
 *.db-shm
 deploy/logs/
+deploy/feeds/

@@ -12,8 +12,21 @@ services:
       LAB_LOKI_URL: http://loki:3100
       LAB_GRAFANA_URL: ${LAB_GRAFANA_URL:-http://127.0.0.1:3000}
       LAB_ALLOW_PRIVATE_HTTP: "true"
+      LAB_GNS3_URL: ${LAB_GNS3_URL:-}
+      LAB_GNS3_USER: ${LAB_GNS3_USER:-}
+      LAB_GNS3_PASSWORD: ${LAB_GNS3_PASSWORD:-}
+      LAB_WAZUH_URL: ${LAB_WAZUH_URL:-}
+      LAB_WAZUH_TOKEN: ${LAB_WAZUH_TOKEN:-}
+      LAB_OLLAMA_URL: ${LAB_OLLAMA_URL:-}
+      LAB_OLLAMA_MODEL: ${LAB_OLLAMA_MODEL:-}
+      LAB_OLLAMA_TOKEN: ${LAB_OLLAMA_TOKEN:-}
+      LAB_ABUSEIPDB_KEY: ${LAB_ABUSEIPDB_KEY:-}
+      LAB_VIRUSTOTAL_KEY: ${LAB_VIRUSTOTAL_KEY:-}
+      LAB_INTELLIGENCE_FEED: ${LAB_INTELLIGENCE_FEED:-}
+      LAB_GEOIP_FEED: ${LAB_GEOIP_FEED:-}
     volumes:
       - soc-data:/data
+      - ./feeds:/feeds:ro
     depends_on: [loki]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
