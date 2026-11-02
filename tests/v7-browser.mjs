@@ -54,6 +54,9 @@ try{
   await page.locator('#v7OpenPreview').click();await expect(page.locator('#v7Mode')).toHaveText('SEKME ANALİZİ');await expect(page.locator('#sEvents')).toHaveText('1');
   await page.locator('.navitem[href="#grafana-view"]').click();await expect(page.locator('#v7ChartLogs')).toContainText(host);
   const raw=await page.locator('#v7ChartLogs').textContent();await page.locator('#languageSelect').selectOption('en');assert.equal(await page.locator('#v7ChartLogs').textContent(),raw,'Evidence survives language changes');
+  await expect(page.locator('#v7GlobalForm button')).toHaveText('Search');
+  await expect(page.locator('.navitem[href="#investigations"]')).toHaveText('⌕ Investigations');
+  await expect(page.locator('#v7ChartScope')).toContainText('Shared investigation filters');
   assert.deepEqual(errors,[]);
   console.log('V7 passed: site-contained graphs, context, Copilot, global search, canonical ingest, cases, saved research, custody, offline services, local upload handoff and responsive layouts.');
 }catch(error){console.error('V7 browser errors:',errors);throw error;}finally{await browser.close();}
