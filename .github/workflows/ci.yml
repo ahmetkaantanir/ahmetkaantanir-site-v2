@@ -1,7 +1,8 @@
 name: Log Intelligence Lab CI
 on:
   push:
-    branches: [main, log-intelligence-lab-upgrade-2026]
+    branches: [main, log-intelligence-lab-upgrade-2026, 'feature/**']
+  workflow_dispatch:
   pull_request:
     branches: [main]
 permissions:
@@ -22,12 +23,13 @@ jobs:
           LOG_LAB_DB_PATH: /tmp/log-lab-ci.db
           LOG_LAB_API_KEY: ci-secret-long-enough-for-automated-tests
         run: |
-          python -m compileall -q app.py log_engine.py soc_api.py soc_engine.py platform_auth.py integrations collectors
+          python -m compileall -q app.py log_engine.py soc_api.py soc_engine.py platform_auth.py integrations collectors backend
           python -m pytest -q
       - name: Check JavaScript syntax
         run: |
           node --check script.js
           node --check soc.js
+          node --check v7.js
           node --check platform-ui.js
           node --check atlas.js
           node --check workspace-embed.js
@@ -37,3 +39,4 @@ jobs:
           node --check functions/_middleware.js
           node --test tests/pages_gate.test.mjs
           node --test tests/geo.test.mjs
+          node --test tests/workspace_local.test.mjs

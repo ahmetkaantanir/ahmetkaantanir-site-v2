@@ -118,15 +118,20 @@ def create_platform_blueprint(connection, audit):
 
     @bp.get("/forensics/batches/<int:batch_id>")
     def evidence_manifest(batch_id):
+        from backend.storage import custody,verify_custody
         with connection() as db:
             batch = db.execute("SELECT * FROM soc_batches WHERE id=?", (batch_id,)).fetchone()
             if not batch:
                 return jsonify(error="Batch not found"), 404
             raw = db.execute("SELECT raw_text FROM soc_raw_batches WHERE batch_id=?", (batch_id,)).fetchone()
-            events = [json.loads(r[0]) for r in db.execute("SELECT raw_json FROM soc_events WHERE batch_id=? ORDER BY id", (batch_id,))]
+            events = [json.loads(r[0]) for r in db.execute("SELECT raw_json FROM soc_events WHERE batch_id=? OR event_id IN (SELECT event_id FROM lab_occurrences WHERE batch_id=?) ORDER BY id", (batch_id,batch_id))]
+            occurrences=[dict(r) for r in db.execute('SELECT event_id,line,source_id FROM lab_occurrences WHERE batch_id=? ORDER BY line',(batch_id,))]
             cases = [dict(r) for r in db.execute("SELECT id,rule_id,status,notes,updated_at FROM soc_cases WHERE batch_id=?", (batch_id,))]
             audit(db, "evidence_export", batch_id)
+            custody(db,g.soc_principal['name'],'evidence_export',batch_id)
+            chain=verify_custody(db)
         result = {"manifest": dict(batch), "events": events, "cases": cases,
+            "source_references":occurrences,"custody":chain,
             "original_available": bool(raw), "original_sha256_verified": None,
             "warning": "Hash verifies byte integrity, not source authenticity."}
         if raw:

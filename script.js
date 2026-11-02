@@ -229,7 +229,7 @@ async function runAnalysis() {
       response = await fetch(`${API_BASE}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_logs: raw, api_lines: parseApiLines(raw) }),
+        body: JSON.stringify({ raw_logs: raw }),
       });
     }
 
@@ -239,6 +239,8 @@ async function runAnalysis() {
 
     latestAnalysis   = payload.analysis;
     latestAnalysisId = payload.analysis_id;
+    window.labCurrentPreview=payload.preview||null;
+    document.dispatchEvent(new CustomEvent('lab-analysis-ready',{detail:window.labCurrentPreview}));
     for(const selector of ['#dashboard','#reporting','.hero-stats'])document.querySelector(selector)?.removeAttribute('hidden');
     els.reportOutput.value='';els.downloadReport.disabled=true;
 
@@ -577,6 +579,7 @@ function clearAll() {
 
   latestAnalysis = null;
   latestAnalysisId = null;
+  window.labCurrentPreview=null;document.dispatchEvent(new CustomEvent('lab-analysis-cleared'));
 
   ['kpiTotal','kpiFailed'].forEach(id => { if (els[id]) els[id].textContent = '0'; });
   if (els.kpiError)  els.kpiError.textContent  = '0%';

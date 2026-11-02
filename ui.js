@@ -43,7 +43,7 @@
   function visit(node) {
     if(node.nodeType===3){
       const parent=node.parentElement;
-      if(!parent||!node.nodeValue.trim()||parent.closest('script,style,pre,code,textarea,[data-no-translate],.maplibregl-map'))return;
+      if(!parent||!node.nodeValue.trim()||parent.closest('script,style,pre,code,textarea,[data-no-translate],.maplibregl-map,.v7-record,.v7-entity,.v7-ledger,.v7-hash,.v7-agent'))return;
       // Cell data and case evidence are source material, not interface copy.
       if(parent.closest('tbody')&&!parent.closest('button')&&!parent.closest('td[colspan]'))return;
       if(parent.closest('.case')&&!parent.closest('button,label,select'))return;

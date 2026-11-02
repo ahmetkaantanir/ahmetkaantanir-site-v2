@@ -1,6 +1,8 @@
 name: Live SOC Browser E2E
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
     paths:
@@ -19,6 +21,10 @@ on:
       - tests/ui-browser.mjs
       - style.css
       - soc.js
+      - v7.js
+      - v7.css
+      - backend/**
+      - tests/v7-browser.mjs
       - platform-ui.js
       - tests/platform-browser.mjs
       - integrations/**
@@ -33,6 +39,7 @@ permissions:
 
 jobs:
   chromium:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -81,3 +88,4 @@ jobs:
           node tests/ui-browser.mjs
           node tests/atlas-browser.mjs
           node tests/platform-browser.mjs
+          node tests/v7-browser.mjs

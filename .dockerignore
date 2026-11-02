@@ -16,4 +16,5 @@ deploy/logs
 deploy/downloads
 deploy/runtime
 tests
+backups
 *.png

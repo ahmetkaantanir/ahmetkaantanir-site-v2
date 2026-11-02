@@ -27,7 +27,7 @@ try {
   for (let i = 0; i < 36; i++) {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
     if (path === '/') await page.locator('#soc-workspace').scrollIntoViewIfNeeded();
-    await page.locator('#mapStyle').waitFor({ timeout: 20000 }).catch(() => {});
+    await page.locator('#mapStyle').waitFor({ state:'attached',timeout: 20000 }).catch(() => {});
     const ready = await page.waitForFunction(() => {
       const mount = document.querySelector('#socMount');
       if (mount) return mount.dataset.ready === 'true';
@@ -37,13 +37,19 @@ try {
     await new Promise(resolve => setTimeout(resolve, 5000));
   }
   assert.equal(found, true, "Atlas and hunting release has not reached the live site");
+  await expect(page.locator('#v7Mode')).toBeVisible({timeout:15000});
+  await expect(page.locator('.navitem[href="#grafana-view"]')).toHaveCount(1);
+  await expect(page.locator('.navitem[href="#copilot"]')).toHaveCount(1);
   await page.locator("#demoWorkspace").click();
+  await expect(page.locator('#v7Mode')).toHaveText('SENTETİK DEMO');
+  await expect(page.locator('#v7OverviewTimeline svg')).toHaveCount(1);
   await expect(page.locator('#sEvents')).toHaveText('18', { timeout: 15000 });
   assert.equal(await page.locator("#eventsBody tr").count(), 18, "Synthetic demo event rows");
   assert.equal(await page.locator("#cases .case").count(), 2, "Synthetic demo case cards");
   assert.equal(await page.locator("#huntPacks .hunt-card").count(), 6);
   assert.equal(await page.locator("#healthCards .health-card").count(), 3);
   assert.equal(await page.locator("#watchBody tr").count(), 1);
+  await page.locator('.navitem[href="#intelligence"]').click();
   await page.locator('#globe').scrollIntoViewIfNeeded();
   await page.waitForFunction(() => window.socTestRoot().querySelector('#globe').atlasMap?.isStyleLoaded(), null, { timeout: 20000 });
   const rotation = await page.evaluate(async () => {

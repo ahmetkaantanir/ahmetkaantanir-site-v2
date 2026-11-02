@@ -27,6 +27,7 @@ try{
   await expect(page.locator('#platformResults')).toContainText('test-platform-host');
   await page.locator('#platformResults button').first().click();
   await expect(page.locator('#evidence')).toBeVisible();
+  await page.locator('#v7CloseDrawer').click();
   await page.locator('#evidenceActions button').filter({hasText:'Grafana / Lab'}).click();
   await expect(page.locator('#platform')).toBeVisible();
   await page.locator('#manifestBatch').fill(String(batch.batch_id));

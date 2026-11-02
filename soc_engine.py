@@ -241,17 +241,8 @@ def _alert(rule: str, records: list[dict], explanation: str) -> dict[str, Any]:
     }
 
 
-def inspect(raw_text: str) -> dict[str, Any]:
-    if not isinstance(raw_text, str):
-        raise ValueError("Log input must be text")
-    lines = [(i, row.strip()) for i, row in enumerate(raw_text.splitlines(), 1) if row.strip()]
-    if not lines:
-        raise ValueError("No events to analyze")
-    if len(lines) > MAX_LINES:
-        raise ValueError(f"Maximum {MAX_LINES} log lines")
-    if any(len(row) > MAX_LINE for _, row in lines):
-        raise ValueError(f"Maximum {MAX_LINE} characters per line")
-    events = [normalize(row, i) for i, row in lines]
+def detect_events(events: list[dict]) -> list[dict]:
+    """Evaluate a bounded normalized stream, including events from prior batches."""
     alerts: list[dict] = []
     for e in events:
         if any(t in WEB_PATTERNS for t in e["tags"]):
@@ -287,7 +278,6 @@ def inspect(raw_text: str) -> dict[str, Any]:
                 window.popleft()
             window.append(e)
             failures = [x for x in window if x["outcome"] == "failure" and x["action"] == "login"]
-            logins = [x for x in window if x["action"] == "login"]
             users = {x["user"] for x in failures if x["user"]}
             port_events = [x for x in window if x["source"] in ("firewall", "suricata", "zeek") and x["port"]]
             ports = {x["port"] for x in port_events}
@@ -317,6 +307,21 @@ def inspect(raw_text: str) -> dict[str, Any]:
                 event_levels[event_id] = alert['severity']
     for e in events:
         e['severity'] = event_levels.get(e['event_id'])
+    return alerts
+
+
+def inspect(raw_text: str) -> dict[str, Any]:
+    if not isinstance(raw_text, str):
+        raise ValueError("Log input must be text")
+    lines = [(i, row.strip()) for i, row in enumerate(raw_text.splitlines(), 1) if row.strip()]
+    if not lines:
+        raise ValueError("No events to analyze")
+    if len(lines) > MAX_LINES:
+        raise ValueError(f"Maximum {MAX_LINES} log lines")
+    if any(len(row) > MAX_LINE for _, row in lines):
+        raise ValueError(f"Maximum {MAX_LINE} characters per line")
+    events = [normalize(row, i) for i, row in lines]
+    alerts = detect_events(events)
     counts = Counter(e["source"] for e in events)
     severities = {a["severity"] for a in alerts}
     risk = "critical" if "critical" in severities else "high" if "high" in severities else "medium" if alerts else "low"

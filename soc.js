@@ -8,6 +8,8 @@ let apiKey = '';
 let workspaceRevision = 0;
 let atlasController;
 let platformController;
+let workspaceController;
+let localPreview=null;
 
 let demoMode = false;
 // All data below is synthetic and is only used to preview the user interface.
@@ -62,6 +64,8 @@ const demoCases = [
   },
 ];
 async function demoAPI(path, opts = {}) {
+  if(localPreview)return window.labWorkspaceLocalAPI(path,opts,localPreview);
+  if(path.startsWith('workspace/'))return window.labWorkspaceLocalAPI(path,opts,{events:demoEvents,cases:demoCases,rules:demoRules,synthetic:true});
   if (opts.method && opts.method !== "GET") {
     throw new Error("Örnek SOC görünümü salt okunurdur. Gerçek işlem için özel API bağlantısı gerekir.");
   }
@@ -177,6 +181,7 @@ function renderEvents(items){
   }
 }
 function showEventEvidence(event){
+  workspaceController?.inspect(event);
   platformController?.context(event);
   openWorkspaceSection('explorer');
   const pre=$('#evidence');pre.hidden=false;put(pre,JSON.stringify(event,null,2));
@@ -207,12 +212,14 @@ let eventOffset=0, eventPageItems=[], eventPageFilters={};
 function eventFilters() {
   const fields={ip:$('#fIp').value.trim(),source:$('#fSource').value,q:$('#fQuery').value.trim(),user:$('#fUser').value.trim(),host:$('#fHost').value.trim(),outcome:$('#fOutcome').value,action:$('#fAction').value.trim()};
   for(const [key,id] of [['start','#fStart'],['end','#fEnd']]) if($(id).value)fields[key]=new Date($(id).value).toISOString();
+  for(const [key,id]of [['severity','fSeverity'],['rule_id','fRule'],['mitre','fMitre'],['status','fCaseState']])if($('#'+id)?.value)fields[key]=$('#'+id).value;
   return fields;
 }
 function renderEventPage(data, filters={}) {
   eventPageFilters={...filters};
   eventOffset=data.offset||0;eventPageItems=data.items;renderEvents(data.items);
-  atlasController?.updateEvents(data.items,{synthetic:demoMode,total:data.total,offset:eventOffset});
+  workspaceController?.eventPage(data.items,filters);
+  atlasController?.updateEvents(data.items,{synthetic:demoMode&&!localPreview,total:data.total,offset:eventOffset});
   put($('#eventCount'),data.items.length ? `${eventOffset+1}–${eventOffset+data.items.length} / ${data.total??data.items.length} olay` : 'Eşleşen olay yok.');
   $('#prevEvents').disabled=eventOffset===0;$('#nextEvents').disabled=!data.has_more;$('#exportEvents').disabled=!data.items.length;
 }
@@ -251,6 +258,7 @@ function renderCases(items){
     });
     const evidence=element('button','smallbutton','Zaman çizelgesi');
     evidence.addEventListener('click',async()=>{
+      workspaceController?.selectCase(c).catch(error=>message(error.message,true));
       try{const r=await api('cases/'+c.id+'/timeline');const pre=$('#caseEvidence');pre.hidden=false;
         put(pre,JSON.stringify(r,null,2));pre.scrollIntoView({behavior:'smooth',block:'nearest'});}
       catch(e){message(e.message,true);}
@@ -319,8 +327,9 @@ async function refreshAll(){
     renderEventPage(events);renderCases(cases.items);renderRules(rules.rules);renderAudit(audit.items);
     renderWatchlist(watchlist);renderHealth(health);
     await platformController?.refresh();
-    const status=$('#connection');put(status,demoMode ? '● Örnek veriler' : '● Güvenli bağlantı');status.classList.add('online');
-    message(demoMode ? 'ÖRNEK MODU: 18 sentetik log, iki örnek alarm; hiçbir gerçek olay sunucuya yüklenmez. Gerçek analiz için Render API anahtarıyla bağlanın.' : 'Bağlantı hazır. Analizler özel SOC veritabanına kaydedilir; yalnızca izinli verileri yükleyin.');
+    await workspaceController?.ready(demoMode?(localPreview?'local':'demo'):'private');
+    const status=$('#connection');put(status,demoMode ? (localPreview?'● Sekme analizi':'● Örnek veriler') : '● Güvenli bağlantı');status.classList.add('online');
+    message(demoMode ? (localPreview?'SEKME ANALİZİ: Yüklediğiniz kayıtlar bu sekmede inceleniyor. Özel SOC veritabanına veya Grafana Cloud’a kaydedilmedi.':'ÖRNEK MODU: 18 sentetik log, iki örnek alarm; hiçbir gerçek olay sunucuya yüklenmez. Gerçek analiz için Render API anahtarıyla bağlanın.') : 'Bağlantı hazır. Analizler özel SOC veritabanına kaydedilir; yalnızca izinli verileri yükleyin.');
   }catch(error){
     if(revision!==workspaceRevision)return;
     $('#connection').classList.remove('online');put($('#connection'),'● Bağlı değil');
@@ -329,12 +338,14 @@ async function refreshAll(){
 }
 $('#demoWorkspace').addEventListener('click',async()=>{
   workspaceRevision++;clearWorkspace();
+  localPreview=null;
   demoMode = true;
   apiKey = '';
   await refreshAll();
 });
 $('#connect').addEventListener('click',async()=>{
   workspaceRevision++;clearWorkspace();
+  localPreview=null;
   demoMode = false;
   apiKey=$('#apiKey').value.trim();$('#apiKey').value='';
   if(!apiKey){message('API anahtarı gerekli.',true);return;}
@@ -349,9 +360,10 @@ $('#analyze').addEventListener('click',async()=>{
     if(f){
       if(f.size>5*1024*1024)throw new Error('Dosya 5 MB sınırını aşıyor.');
       body=new FormData();body.append('file',f);
+      const options=workspaceController?.ingestOptions()||{};for(const [key,value]of Object.entries(options))body.append(key,String(value));
     }else{
       const raw=$('#raw').value;if(!raw.trim())throw new Error('Log girin veya dosya seçin.');
-      body=JSON.stringify({raw_logs:raw});
+      body=JSON.stringify({raw_logs:raw,...(workspaceController?.ingestOptions()||{})});
     }
     const r=await api('ingest',{method:'POST',body});
     const result=$('#ingestResult');result.hidden=false;
@@ -359,6 +371,7 @@ $('#analyze').addEventListener('click',async()=>{
     message(r.duplicate?'Dosya daha önce analiz edilmiş; tekrarlı kayıt oluşturulmadı.':
       'İçe alma tamamlandı: '+r.events+' olay, '+r.alert_count+' alarm.');
     await refreshAll();
+    await workspaceController?.afterIngest(r);
   }catch(e){message(e.message,true);}finally{button.disabled=false;}
 });
 $('#demo').addEventListener('click',()=>{
@@ -397,9 +410,15 @@ function openWorkspaceSection(id,scroll=false){
     if(active)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current');
   }
   if(id==='intelligence')requestAnimationFrame(()=>$('#globe').atlasMap?.resize());
+  workspaceController?.onSection(id);
   if(scroll)target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
 }
 platformController=window.initPlatformUI({root:workspaceRoot,$,api,element,message,openSection:openWorkspaceSection,evidence:showEventEvidence,explore:async filters=>{clearEventFilters();if(filters.host)$('#fHost').value=filters.host;openWorkspaceSection('explorer',true);try{await refreshEvents(true);}catch(error){message(error.message,true);}}});
+workspaceController=window.initV7Workspace({root:workspaceRoot,$,api,element,message,openSection:openWorkspaceSection,showEvidence:showEventEvidence,
+  explore:async filters=>{openWorkspaceSection('explorer',true);try{await refreshEvents(true,0,filters);}catch(error){message(error.message,true);}},
+  usePreview:async preview=>{workspaceRevision++;clearWorkspace();localPreview=null;apiKey='';if(!preview){demoMode=false;return;}demoMode=true;const rules=demoRules;
+    localPreview={...preview,synthetic:false,rules,cases:(preview.alerts||[]).map((a,i)=>({...a,id:20000+i,status:'new',notes:'',created_at:a.timestamp||'',evidence_json:JSON.stringify(a.event_ids)}))};await refreshAll();openWorkspaceSection('overview',true);},
+  openStream:(after,signal)=>demoMode?null:fetch('/api/soc/workspace/live?'+new URLSearchParams({after:String(after)}),{headers:{'X-API-Key':apiKey},cache:'no-store',signal})});
 workspaceRoot.querySelectorAll('.navitem').forEach(a=>a.addEventListener('click',(event)=>{
   const target=$(a.getAttribute('href'));
   if(target){event.preventDefault();openWorkspaceSection(target.id,true);}
@@ -407,7 +426,7 @@ workspaceRoot.querySelectorAll('.navitem').forEach(a=>a.addEventListener('click'
 
 function renderIntelligence(data) {
   renderInvestigationInsights(data);
-  put($('#intelMode'), demoMode ? 'SENTETİK ÖRNEK' : 'KAYITLI VERİ');
+  put($('#intelMode'), demoMode ? (localPreview?'SEKME ANALİZİ':'SENTETİK ÖRNEK') : 'KAYITLI VERİ');
   const quality = $('#quality'); quality.replaceChildren();
   for (const [label, count] of [['Toplam olay',data.total],['Zamanı eksik',data.missing_time],['IP eksik',data.missing_ip],['Ayrıştırılamayan',data.unparsed]]) {
     const card = element('article','quality-card');
@@ -475,7 +494,7 @@ function renderInvestigationInsights(data) {
   for(const [i,text] of steps.entries()){const row=element('div','guide-step');row.append(element('span','',String(i+1).padStart(2,'0')),element('p','',text));guide.append(row);}
 }
 
-function clearEventFilters(){for(const id of ['fIp','fSource','fQuery','fUser','fHost','fOutcome','fAction','fStart','fEnd'])$('#'+id).value='';}
+function clearEventFilters(){for(const id of ['fIp','fSource','fQuery','fUser','fHost','fOutcome','fAction','fStart','fEnd','fSeverity','fRule','fMitre','fCaseState'])if($('#'+id))$('#'+id).value='';}
 const huntPacks=[
   {title:'Başarısız kimlik doğrulama',mitre:'T1110',fields:{action:'login',outcome:'failure'},text:'IP, kullanıcı ve zaman aralığını daraltın. Tek başarısız oturum saldırı kanıtı değildir.'},
   {title:'PowerShell komutları',mitre:'T1059.001',fields:{q:'powershell'},text:'Komut satırı, parent process ve kodlama bayraklarını ham kanıt üzerinde karşılaştırın.'},
@@ -532,12 +551,13 @@ bindButton('#prevEvents',()=>refreshEvents(true,Math.max(0,eventOffset-100),even
 bindButton('#nextEvents',()=>refreshEvents(true,eventOffset+100,eventPageFilters));
 $('#exportEvents').addEventListener('click',()=>{
   if(!eventPageItems.length)return;
-  const payload={schema_version:'1.0',exported_at:new Date().toISOString(),synthetic:demoMode,filters:eventPageFilters,offset:eventOffset,count:eventPageItems.length,scope:'current_page_only',events:eventPageItems};
+  const payload={schema_version:'7.0',exported_at:new Date().toISOString(),synthetic:demoMode&&!localPreview,local_only:Boolean(localPreview),filters:eventPageFilters,offset:eventOffset,count:eventPageItems.length,scope:'current_page_only',events:eventPageItems};
   const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})),a=element('a');a.href=url;a.download='log-evidence-'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
 
 function clearWorkspace(){
   platformController?.reset();
+  workspaceController?.reset();
   clearEventFilters();$('#caseStatus').value='';
   for(const id of ['sEvents','sAlerts','sBatches','sCases'])put($('#'+id),'—');
   for(const id of ['sources','recent','quality','ipBody','cases','rulesList','auditList','watchBody','healthCards','eventTrend','severityBreakdown','investigationGuide'])$('#'+id).replaceChildren();
@@ -547,6 +567,8 @@ function clearWorkspace(){
   $('#watchAdd').disabled=true;renderEventPage({items:[],total:0});
 }
 
-openWorkspaceSection(location.hash==='#platform'?'platform':'intelligence');
+const initial=location.hash.slice(1);openWorkspaceSection([...workspaceRoot.querySelectorAll('.main > section[id]')].some(e=>e.id===initial)?initial:'overview');
 atlasController=window.initSocAtlas({$, atlasPlaces, put, element,onEvidence:showEventEvidence,onExplore:()=>openWorkspaceSection('explorer',true),onGeoIP:ips=>api('platform/geoip?'+new URLSearchParams({ips:ips.join(',')}))});
+$('#demoWorkspace').disabled=false;
+$('#connect').disabled=false;
 };

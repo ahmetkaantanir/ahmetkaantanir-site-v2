@@ -19,15 +19,15 @@ jobs:
           get_status() {
             curl --silent --show-error --location --retry 1 --max-time 40 --output /tmp/live-response --write-out '%{http_code}' "$HOST$1"
           }
-          for PATHNAME in / /soc /soc.css /soc.js /style.css /script.js; do
+          for PATHNAME in / /soc /soc.css /soc.js /v7.js /v7.css /style.css /script.js; do
             CODE=$(get_status "$PATHNAME") || CODE="000"
             echo "PUBLIC $PATHNAME HTTP $CODE"
             if [ "$CODE" != "200" ]; then
               echo "::error::Public $PATHNAME missing HTTP $CODE"
               exit 1
             fi
-            if [ "$PATHNAME" = "/soc" ] && ! grep -qi 'SOC Workspace' /tmp/live-response; then
-              echo "::error::V5 SOC page marker missing"
+            if [ "$PATHNAME" = "/soc" ] && ! grep -q '/v7.js' /tmp/live-response; then
+              echo "::error::V7 workspace release missing"
               exit 1
             fi
           done
