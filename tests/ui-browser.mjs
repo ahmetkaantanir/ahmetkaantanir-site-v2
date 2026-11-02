@@ -32,6 +32,7 @@ try{
   await expect(page.locator('#sEvents')).toHaveText('18');
   await page.locator('#languageSelect').selectOption('en');
   await expect(page.locator('#demoWorkspace')).toHaveText('Try sample workspace');
+  await page.locator('.navitem[href="#intelligence"]').click();
   await page.locator('#atlasMode').selectOption('reference');
   await page.locator('#countrySelect').selectOption('jp');await page.locator('#flyStreet').click();
   await page.waitForFunction(()=>document.querySelector('#socMount').shadowRoot.querySelector('#globe').atlasMap.getZoom()===16);
@@ -89,6 +90,7 @@ try{
   await page.locator('#languageSelect').selectOption('tr');await expect(page.locator('#search')).toHaveText('Filtrele');
   await page.route('**/vendor/maplibre/maplibre-gl-csp.js',route=>route.abort());
   await page.goto(new URL('/soc',base).href,{waitUntil:'domcontentloaded'});
+  await page.locator('.navitem[href="#intelligence"]').click();
   await expect(page.locator('.map-unavailable')).toBeVisible();await expect(page.locator('#zoomIn')).toBeDisabled();
   await page.locator('#atlasMode').selectOption('reference');
   await page.locator('#countrySelect').selectOption('jp');await expect(page.locator('#countryDetail h3')).toHaveText('Japonya');

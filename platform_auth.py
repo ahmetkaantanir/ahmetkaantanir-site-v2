@@ -30,9 +30,15 @@ def permitted(identity, method, path):
     if role == "admin":
         return True
     if role == "collector":
-        return method == "POST" and path == "/api/soc/ingest"
+        return method == "POST" and path in {"/api/soc/ingest","/api/soc/workspace/heartbeat"}
     if method in {"GET", "HEAD"}:
         return not path.endswith("/audit")
+    if path.startswith('/api/soc/workspace/'):
+        endpoint=path.removeprefix('/api/soc/workspace/')
+        if method=='POST' and endpoint in {'query','analytics','loki','copilot','rules/test'}:
+            return role in {'reader','analyst'}
+        return role=='analyst' and ((method=='POST' and endpoint in {'sync','heartbeat','investigations','saved-queries','rules','aliases','cases','cases/merge'}) or
+            (method=='PATCH' and (endpoint.startswith('investigations/') or endpoint.startswith('cases/'))))
     return role == "analyst" and ("/cases/" in path or path.endswith("/watchlist") or
         "/watchlist/" in path or path.endswith("/ingest") or path.endswith("/sigma/test") or
         path.endswith("/forensics/verify") or "/platform/assistant/" in path or path.endswith('/intelligence/enrich'))

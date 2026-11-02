@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATASET_DIR = BASE_DIR / 'datasets'
 DB_PATH = Path(os.environ.get('LOG_LAB_DB_PATH', str(BASE_DIR / 'analysis.db')))
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024
-ALLOWED_EXTENSIONS = {'log', 'txt', 'json'}
+ALLOWED_EXTENSIONS = {'log', 'txt', 'json','jsonl','ndjson'}
 RATE_WINDOW = 60
 RATE_LIMITS: Dict[str, int] = {
     'default': 120,
@@ -158,7 +158,7 @@ def create_app() -> Flask:
                             'vendor/maplibre/maplibre-gl-csp.js',
                             'vendor/maplibre/maplibre-gl-csp-worker.js',
                             'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre/LICENSE.txt', 'workspace-embed.js',
-                            'ui.js', 'ui.css', 'translations.js', 'geo.js', 'platform-ui.js', 'vendor/world-land.geojson'}:
+                            'ui.js', 'ui.css', 'translations.js', 'geo.js', 'platform-ui.js','v7.js','v7.css', 'vendor/world-land.geojson'}:
             return _json_error('Not found', 404)
         return send_from_directory(BASE_DIR, filename)
 
@@ -227,7 +227,8 @@ def index() -> Response:
 
 @app.route('/api/health')
 def health() -> Response:
-    return jsonify({'status': 'ok', 'service': 'AKT Log Intelligence API', 'time': _utc_now_iso()})
+    return jsonify({'status': 'ok', 'service': 'AKT Log Intelligence API','version':'7.0',
+        'revision':os.getenv('RENDER_GIT_COMMIT','local'), 'time': _utc_now_iso()})
 
 
 @app.route('/api/datasets')
@@ -298,7 +299,16 @@ def analyze_endpoint() -> Response:
     analysis_id = None
 
 
-    return jsonify({'analysis_id': analysis_id, 'analysis': analysis})
+    from soc_engine import inspect
+    try:
+        preview=inspect(raw_logs)
+    except ValueError as exc:
+        return _json_error(str(exc),400)
+    by_id={e['event_id']:e for e in preview['events']}
+    analysis['alerts']=[{**a,'raw':'\n'.join(by_id[i]['raw'] for i in a['event_ids'][:3] if i in by_id)} for a in preview['alerts']]
+    analysis['risk']=preview['risk']
+    analysis['failed_login']=sum(e['action']=='login' and e['outcome']=='failure' for e in preview['events'])
+    return jsonify({'analysis_id': analysis_id, 'analysis': analysis,'preview':preview})
 
 
 @app.route('/api/report', methods=['POST'])

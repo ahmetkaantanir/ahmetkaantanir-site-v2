@@ -13,6 +13,10 @@ from flask import Blueprint, g, jsonify, request
 from soc_engine import RULES, inspect
 from platform_auth import principal, permitted
 from integrations.platform import create_platform_blueprint
+from backend.schema import initialize as initialize_workspace
+from backend.storage import ingest_text,custody
+from backend.workspace import create_workspace_blueprint
+from backend import cloud_sync
 
 STATUSES = {"new", "investigating", "resolved", "false_positive"}
 
@@ -67,6 +71,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
             batch_id INTEGER PRIMARY KEY REFERENCES soc_batches(id), raw_text TEXT NOT NULL
         );
         """)
+    initialize_workspace(connection)
     try:
         os.chmod(db_path, 0o600)
     except OSError:
@@ -96,6 +101,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
 
     @bp.post("/ingest")
     def ingest():
+        sync=False;source_id=None
         file = request.files.get("file")
         if file is not None:
             if not file.filename or file.filename.rsplit(".", 1)[-1].lower() not in {"log", "txt", "json", "jsonl", "ndjson"}:
@@ -108,44 +114,22 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
             except UnicodeDecodeError:
                 return jsonify({"error": "UTF-8 input required"}), 400
             source = "file_upload"
+            sync=request.form.get('sync_loki','false')=='true'
+            source_id=request.form.get('source_id')
         else:
             payload = request.get_json(silent=True)
             if not isinstance(payload, dict) or not isinstance(payload.get("raw_logs"), str):
                 return jsonify({"error": "raw_logs must be a string"}), 400
             text = payload["raw_logs"]
             source = "api"
+            sync=payload.get('sync_loki',False)
+            source_id=payload.get('source_id')
         try:
-            result = inspect(text)
+            result,status=ingest_text(connection,audit,text,source,g.soc_principal['name'],source_id,sync)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-        moment = now()
-        with connection() as db:
-            db.execute("BEGIN IMMEDIATE")
-            existing = db.execute("SELECT id FROM soc_batches WHERE sha256=?", (result["sha256"],)).fetchone()
-            if existing:
-                return jsonify({"batch_id": existing["id"], "duplicate": True, "sha256": result["sha256"],
-                                "events": result["total"], "alert_count": len(result["alerts"]), "risk": result["risk"]}), 200
-            cur = db.execute(
-                "INSERT INTO soc_batches(created_at,source,sha256,event_count,alert_count,risk) VALUES (?,?,?,?,?,?)",
-                (moment, source, result["sha256"], result["total"], len(result["alerts"]), result["risk"]))
-            batch = cur.lastrowid
-            db.execute("INSERT INTO soc_raw_batches(batch_id,raw_text) VALUES (?,?)", (batch, text))
-            db.executemany(
-                "INSERT INTO soc_events(batch_id,event_id,timestamp,source,ip,user_name,raw_json) VALUES (?,?,?,?,?,?,?)",
-                [(batch, e["event_id"], e["timestamp"], e["source"], e["ip"], e["user"],
-                  json.dumps(e, ensure_ascii=False)) for e in result["events"]])
-            db.executemany(
-                """INSERT INTO soc_cases
-                (batch_id,alert_id,rule_id,severity,ip,reason,evidence_json,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?)""",
-                [(batch, a["alert_id"], a["rule_id"], a["severity"], a["ip"], a["reason"],
-                  json.dumps(a["event_ids"]), moment, moment) for a in result["alerts"]])
-            audit(db, "ingest", batch)
-        return jsonify({"batch_id": batch, "duplicate": False, "sha256": result["sha256"],
-                        "events": result["total"], "alert_count": len(result["alerts"]),
-                        "risk": result["risk"], "sources": result["sources"],
-                        "unknown_timestamps": result["unknown_timestamps"],
-                        "limitations": result["limitations"]}), 201
+        if sync:result['cloud_sync']=cloud_sync.flush(connection)
+        return jsonify(result),status
 
     @bp.get("/summary")
     def summary():
@@ -194,6 +178,12 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
         if offset < 0 or offset > 10000000:
             return jsonify({"error": "offset out of range"}), 400
         limit = min(max(limit, 1), 500)
+        if any(request.args.get(k) for k in ('severity','mitre','rule_id','status','source_id','event_id')):
+            from backend.query import search_events
+            filters={k:request.args[k] for k in ('ip','source','user','host','outcome','action','q','start','end','severity','mitre','rule_id','status','source_id','event_id') if request.args.get(k)}
+            try:
+                with connection() as db:return jsonify(search_events(db,filters,limit,offset))
+            except ValueError as exc:return jsonify(error=str(exc)),400
         ip = request.args.get("ip", "")[:80]
         source = request.args.get("source", "")[:80]
         query = request.args.get("q", "")[:120]
@@ -322,6 +312,7 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
             db.execute("UPDATE soc_cases SET status=?,notes=?,updated_at=? WHERE id=?",
                        (status, notes, now(), case_id))
             audit(db, "case_update", case_id)
+            custody(db,g.soc_principal['name'],'case_update',case_id)
         return jsonify({"ok": True, "case_id": case_id})
 
     @bp.get("/cases/<int:case_id>/timeline")
@@ -331,8 +322,12 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
             if not row:
                 return jsonify({"error": "Case not found"}), 404
             ids = set(json.loads(row["evidence_json"]))
-            events = [json.loads(r["raw_json"]) for r in db.execute(
-                "SELECT raw_json FROM soc_events WHERE batch_id=? ORDER BY julianday(timestamp), id", (row["batch_id"],))]
+            if ids and all(i.startswith('evt-') for i in ids):
+                events=[json.loads(r[0]) for r in db.execute('SELECT raw_json FROM soc_events WHERE event_id IN (SELECT value FROM json_each(?)) ORDER BY julianday(timestamp),id',(json.dumps(list(ids)),))]
+            else:
+                events = [json.loads(r["raw_json"]) for r in db.execute(
+                    "SELECT raw_json FROM soc_events WHERE batch_id=? ORDER BY julianday(timestamp), id", (row["batch_id"],))]
+            custody(db,g.soc_principal['name'],'case_timeline_read',case_id)
         return jsonify({"case_id": case_id, "items": [e for e in events if e["event_id"] in ids]})
 
     @bp.get("/cases/<int:case_id>/explain")
@@ -357,4 +352,5 @@ def create_soc_blueprint(db_path: Path) -> Blueprint:
         return jsonify({"items": [dict(r) for r in rows]})
 
     bp.register_blueprint(create_platform_blueprint(connection, audit))
+    bp.register_blueprint(create_workspace_blueprint(connection,audit))
     return bp

@@ -19,6 +19,10 @@ on:
       - tests/ui-browser.mjs
       - style.css
       - soc.js
+      - v7.js
+      - v7.css
+      - backend/**
+      - tests/v7-browser.mjs
       - platform-ui.js
       - tests/platform-browser.mjs
       - integrations/**
@@ -81,3 +85,4 @@ jobs:
           node tests/ui-browser.mjs
           node tests/atlas-browser.mjs
           node tests/platform-browser.mjs
+          node tests/v7-browser.mjs

@@ -6,6 +6,7 @@ const page=await browser.newPage({viewport:{width:1440,height:1000},locale:'tr-T
 const errors=[],tileRequests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/tiles\.maps\.eox|tile\.openstreetmap/.test(r.url()))tileRequests.push(r.url());});
 try{
   await page.goto(new URL('/soc',base).href,{waitUntil:'domcontentloaded'});
+  await page.locator('.navitem[href="#intelligence"]').click();
   await page.locator('#globe').scrollIntoViewIfNeeded();
   await page.waitForFunction(()=>document.querySelector('#globe').atlasMap?.isStyleLoaded());
   await expect(page.locator('#geoCoverage')).toContainText('0 / 0');
@@ -26,6 +27,7 @@ try{
   await expect(page.locator('#explorer')).toBeVisible();
   const evidence=JSON.parse(await page.locator('#evidence').textContent());
   assert.equal(evidence.event_id,'example-016');assert.equal(JSON.parse(evidence.raw).synthetic,true);
+  await page.locator('#v7CloseDrawer').click();
   await page.locator('#evidenceActions button').filter({hasText:'Çevre olayları'}).click();
   const downloadPromise=page.waitForEvent('download');await page.locator('#exportEvents').click();
   const stream=await(await downloadPromise).createReadStream();const chunks=[];for await(const chunk of stream)chunks.push(chunk);
@@ -45,6 +47,7 @@ try{
   }
   await page.route('**/vendor/maplibre/maplibre-gl-csp.js',route=>route.abort());
   await page.goto(new URL('/soc',base).href,{waitUntil:'domcontentloaded'});
+  await page.locator('.navitem[href="#intelligence"]').click();
   await page.locator('#demoWorkspace').click();await expect(page.locator('#geoCoverage')).toContainText('3 / 18');
   await page.locator('.geo-location').first().click();await page.locator('.geo-evidence').first().click();
   await expect(page.locator('#evidence')).toContainText('example-016');

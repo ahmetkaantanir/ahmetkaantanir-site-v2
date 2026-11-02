@@ -74,6 +74,8 @@ def _request_json(service, path, params=None, method="GET", payload=None, author
             data = response.read(2 * 1024 * 1024 + 1)
             if len(data) > 2 * 1024 * 1024:
                 raise IntegrationError("Upstream response exceeds 2 MB")
+            if response.status == 204 and not data:
+                return {}
             return json.loads(data)
     except HTTPError as exc:
         raise IntegrationError("Upstream rejected the request", status=exc.code) from exc

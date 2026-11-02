@@ -1,4 +1,6 @@
-# Log Intelligence Lab V6
+# Log Intelligence Lab V7
+
+V7 adds an investigation workspace inside the site: SOC/Loki graphs, shared event context, evidence drawer, saved investigations and queries, versioned detection rules, case assignment/SLA, authenticated live events and an evidence-based read-only Copilot. Setup, tested scope and service requirements: [V7 delivery guide](./V7_DELIVERY.md).
 
 ## Entegrasyon ve araştırma merkezi
 

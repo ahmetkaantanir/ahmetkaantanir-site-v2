@@ -24,7 +24,7 @@
       const title=app.querySelector('h1'),heading=document.createElement('h2');heading.className='workspace-title';heading.textContent=title.textContent;title.replaceWith(heading);
       const shadow=mount.shadowRoot||mount.attachShadow({mode:'open'});shadow.replaceChildren();
       const css=[];
-      for(const href of ['/vendor/maplibre/maplibre-gl.css','/soc.css','/ui.css']){
+      for(const href of ['/vendor/maplibre/maplibre-gl.css','/soc.css','/ui.css','/v7.css']){
         const link=document.createElement('link');link.rel='stylesheet';link.href=href;
         css.push(new Promise((resolve,reject)=>{link.onload=resolve;link.onerror=()=>reject(new Error('Çalışma alanı stilleri yüklenemedi.'));}));shadow.append(link);
       }
@@ -37,7 +37,7 @@
       shadow.append(scoped,content);
       // Let the atlas keep its location cards and fallback when WebGL assets fail.
       await Promise.all([...css,script('/vendor/maplibre/maplibre-gl-csp.js').catch(()=>{}),script('/geo.js'),script('/soc.js')]);
-      await script('/platform-ui.js');await script('/atlas.js');
+      await script('/platform-ui.js');await script('/v7.js');await script('/atlas.js');
       window.initSocWorkspace(shadow);content.inert=false;loaded=true;mount.dataset.ready='true';
       document.dispatchEvent(new CustomEvent('soc-workspace-ready'));
     }catch(error){

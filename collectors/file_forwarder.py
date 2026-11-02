@@ -64,7 +64,9 @@ def enqueue_file(db, filename):
     raw = "".join(lines)
     with db:
         if raw.strip():
-            db.execute("INSERT INTO outbox(body) VALUES (?)", (json.dumps({"raw_logs": raw}),))
+            db.execute("INSERT INTO outbox(body) VALUES (?)", (json.dumps({"raw_logs": raw,
+                'source_id':os.getenv('LAB_COLLECTOR_SOURCE_ID','file-forwarder'),
+                'sync_loki':os.getenv('LAB_SOC_SYNC_LOKI')=='true'}),))
         db.execute("INSERT OR REPLACE INTO offsets VALUES (?,?,?)", (str(file), identity, end))
     return len(lines)
 
@@ -108,7 +110,18 @@ def main():
     if len(key)<24:
         parser.error("LAB_COLLECTOR_KEY of at least 24 characters required")
     db = connect(args.state)
+    last_heartbeat=0
     while True:
+        if time.monotonic()-last_heartbeat>=30:
+            try:
+                pending=db.execute('SELECT COUNT(*) FROM outbox').fetchone()[0]
+                req=Request(base.rstrip('/')+'/api/soc/workspace/heartbeat',method='POST',
+                    data=json.dumps({'version':'7.0','metadata':{'pending_packages':pending}}).encode(),
+                    headers={'Content-Type':'application/json','X-API-Key':key,'User-Agent':'LogIntelligenceLab-Collector/1.0'})
+                with build_opener(NoRedirect).open(req,timeout=5) as response:response.read(4096)
+            except (HTTPError,URLError,OSError,ValueError):
+                pass
+            last_heartbeat=time.monotonic()
         for file in args.file:
             try:
                 enqueue_file(db, file)
