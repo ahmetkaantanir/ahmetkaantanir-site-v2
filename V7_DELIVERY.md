@@ -24,4 +24,20 @@ GNS3, Wazuh and Ollama need actual running services and reachable URLs. Their sc
 
 ## Validation
 
-131 Python tests passed locally. V7, UI, Atlas and platform browser suites passed with Microsoft Edge, covering private ingestion, cross-screen evidence, local analysis, site-contained Loki views, languages and responsive layouts. CI repeats Python, JavaScript and isolated browser checks on Linux.
+### Full database backup and recovery
+
+The local maintenance command snapshots SQLite through its online backup API, including committed WAL data. It retains raw batches, events, cases, notes, saved investigations, rules and custody records. It checks database integrity and references and reports a SHA-256 plus record counts. It never replaces an existing destination.
+
+```sh
+python -m backend.backup backup --source analysis.db --output backups/soc-2026-11-02.db
+python -m backend.backup verify --source backups/soc-2026-11-02.db
+python -m backend.backup restore --source backups/soc-2026-11-02.db --output recovered.db
+```
+
+For recovery, stop the application, point `LOG_LAB_DB_PATH` at the verified recovered file and restart. Preserve the original database until the recovered workspace has been checked. Store backups outside ephemeral hosting and protect them like the source logs. These commands require filesystem access to the service database; a local backup cannot recover a remote database that has already been lost. Docker images and Git exclude the backup directory.
+
+### Release checks
+
+CI runs on feature branches and pull requests. Pull requests also run the isolated UI, Atlas, platform and V7 browser suites. Live checks explicitly require V7 controls and assets, so an older V6 deployment cannot pass as the completed release.
+
+142 Python tests and 14 JavaScript tests passed locally on 2026-11-02. V7, UI, Atlas and platform browser suites passed with Microsoft Edge, covering private ingestion, cross-screen evidence, local analysis, site-contained Loki views, languages and responsive layouts. The new checks cover malformed query controls, local filter/order parity, delayed-script startup and recovery of a complete workspace including WAL data and pre-upgrade databases. CI repeats Python, JavaScript and isolated browser checks on Linux.

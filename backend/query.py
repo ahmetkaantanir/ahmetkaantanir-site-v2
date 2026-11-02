@@ -55,8 +55,8 @@ def where(filters):
         if type(filters['synthetic']) is not bool:
             raise ValueError('synthetic must be a boolean')
         clauses.append("COALESCE(json_extract(raw_json,'$.synthetic'),0)=?");args.append(int(filters['synthetic']))
-    if filters.get('status'):
-        if filters['status'] not in {'new','investigating','resolved','false_positive'}:
+    if filters.get('status') not in (None, ''):
+        if not isinstance(filters['status'], str) or filters['status'] not in {'new','investigating','resolved','false_positive'}:
             raise ValueError('Invalid case status')
         clauses.append('event_id IN (SELECT value FROM soc_cases,json_each(evidence_json) WHERE status=?)')
         args.append(filters['status'])
@@ -64,6 +64,11 @@ def where(filters):
 
 
 def search_events(db, filters, limit=200, offset=0, order='desc'):
+    for name, value in [('limit', limit), ('offset', offset)]:
+        if type(value) is not int and not (isinstance(value, str) and value.isascii() and value.isdecimal() and len(value) <= 10):
+            raise ValueError(name+' must be an integer')
+    if not isinstance(order, str) or order not in {'asc', 'desc'}:
+        raise ValueError('order must be asc or desc')
     limit = max(1,min(int(limit),500));offset=max(0,min(int(offset),1000000))
     clause,args = where(filters)
     total = db.execute('SELECT COUNT(*) FROM soc_events'+clause,args).fetchone()[0]

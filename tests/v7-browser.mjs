@@ -6,7 +6,15 @@ const page=await browser.newPage({viewport:{width:1440,height:1000},locale:'tr-T
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const open=async id=>{await page.locator('.navitem[href="#'+id+'"]').click();await expect(page.locator('#'+id)).toBeVisible();};
 try{
-  await page.goto(base+'/soc',{waitUntil:'domcontentloaded'});
+  let releaseStartup;
+  const startup=new Promise(resolve=>{releaseStartup=resolve;});
+  await page.route('**/atlas.js',async route=>{await startup;await route.continue();});
+  await page.goto(base+'/soc',{waitUntil:'commit'});
+  await expect(page.locator('#demoWorkspace')).toBeDisabled();
+  await expect(page.locator('#connect')).toBeDisabled();
+  releaseStartup();
+  await expect(page.locator('#demoWorkspace')).toBeEnabled();
+  await page.unroute('**/atlas.js');
   await expect(page.locator('#overview')).toBeVisible();
   await page.locator('#demoWorkspace').click();await expect(page.locator('#sEvents')).toHaveText('18');
   await expect(page.locator('#v7OverviewTimeline svg')).toHaveCount(1);

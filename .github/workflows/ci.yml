@@ -1,7 +1,8 @@
 name: Log Intelligence Lab CI
 on:
   push:
-    branches: [main, log-intelligence-lab-upgrade-2026]
+    branches: [main, log-intelligence-lab-upgrade-2026, 'feature/**']
+  workflow_dispatch:
   pull_request:
     branches: [main]
 permissions:
@@ -38,3 +39,4 @@ jobs:
           node --check functions/_middleware.js
           node --test tests/pages_gate.test.mjs
           node --test tests/geo.test.mjs
+          node --test tests/workspace_local.test.mjs

@@ -47,7 +47,7 @@ Atmosfer ve kıyı çizgileri küreyi okunur kılar. Yerel Natural Earth tabanı
 ## Araştırmadan uygulamaya
 
 - [Elastic: network map data](https://www.elastic.co/docs/solutions/security/advanced-entity-analytics/configure-network-map-data): olay haritalamasının açık ECS konum alanlarına dayanması. Burada GeoIP servisi kopyalanmadı; yalnızca mevcut log koordinatları okunur.
-- [Grafana: logs in Explore](https://grafana.com/docs/grafana/latest/visualizations/explore/logs-integration/): log ayrıntısı ve zaman bağlamına geçiş yaklaşımı. Burada mevcut olay API'siyle ±5 dakika ve varlık kısayolları eklendi; Loki/LogQL entegrasyonu iddia edilmez.
+- [Grafana: logs in Explore](https://grafana.com/docs/grafana/latest/visualizations/explore/logs-integration/): log ayrıntısı ve zaman bağlamına geçiş yaklaşımı. V7, yetkili sunucu geçidi üzerinden Loki/LogQL sorgularını site içinde gösterir; ±5 dakika ve varlık kısayolları aynı araştırma bağlamını kullanır. Bağlantı yapılandırması için [V7 teslim rehberine](./V7_DELIVERY.md) bakın.
 - [MapLibre: globe atmosphere](https://maplibre.org/maplibre-gl-js/docs/examples/display-a-globe-with-an-atmosphere/): atmosfer ayarı yerel 5.24.0 sürümünün desteklediği stil alanlarıyla uygulandı; kitaplık sürümü yükseltilmedi.
 - [Natural Earth kullanım şartları](https://www.naturalearthdata.com/about/terms-of-use/): kamu malı düşük detaylı yerel taban, canlı uydu veya olay kanıtı değildir. [Veri kaynağı](./vendor/WORLD-DATA.md).
 

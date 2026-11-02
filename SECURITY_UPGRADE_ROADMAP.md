@@ -26,5 +26,9 @@ This branch is the working area for rebuilding the existing Log Intelligence Lab
 
 - [x] GitHub development branch created.
 - [x] Implementation roadmap committed.
-- [ ] Security baseline implementation and verification.
-- [ ] Additional parsers, detections, correlation, investigations, AI and dashboard.
+- [x] Security baseline implementation and verification: authenticated APIs, role restrictions, source blocking, bounded input and evidence-preserving rendering.
+- [x] Parsers, detections, cross-batch correlation, cases, saved investigations and V7 workspace implemented and tested.
+- [x] Read-only evidence Copilot, optional configured model commentary and service adapters implemented.
+- [x] Consistent SQLite backup, integrity verification and non-destructive recovery implemented and tested.
+
+Current scope, deployment requirements and validation: [V7 delivery guide](./V7_DELIVERY.md). External runtimes require separately running services; model adapters alone do not deploy a model. This checklist records the implemented lab scope, not enterprise certification.

@@ -569,4 +569,6 @@ function clearWorkspace(){
 
 const initial=location.hash.slice(1);openWorkspaceSection([...workspaceRoot.querySelectorAll('.main > section[id]')].some(e=>e.id===initial)?initial:'overview');
 atlasController=window.initSocAtlas({$, atlasPlaces, put, element,onEvidence:showEventEvidence,onExplore:()=>openWorkspaceSection('explorer',true),onGeoIP:ips=>api('platform/geoip?'+new URLSearchParams({ips:ips.join(',')}))});
+$('#demoWorkspace').disabled=false;
+$('#connect').disabled=false;
 };

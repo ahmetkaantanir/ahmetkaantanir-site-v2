@@ -41,7 +41,7 @@ Object.assign(window.labEnglish||{}, {
   'Aramayı kapat':'Close search','Bu kapsamda doğrulanabilir işlem zinciri yok.':'No verifiable server custody chain in this scope.'
 });
 const clone=value=>JSON.parse(JSON.stringify(value));
-function filterLocal(events,filters={}){
+function filterLocal(events,filters={},cases=[]){
   return events.filter(e=>Object.entries(filters).every(([key,value])=>{
     if(value==null||value==='')return true;
     if(key==='q')return JSON.stringify(e).toLocaleLowerCase().includes(String(value).toLocaleLowerCase());
@@ -49,6 +49,9 @@ function filterLocal(events,filters={}){
     if(key==='end')return e.timestamp&&Date.parse(e.timestamp)<=Date.parse(value);
     if(key==='rule_id')return (e.detection_rules||[]).includes(value);
     if(key==='mitre')return (e.mitre||[]).includes(value);
+    if(key==='event_ids')return Array.isArray(value)&&value.includes(e.event_id);
+    if(key==='synthetic')return (e.synthetic===true)===value;
+    if(key==='status')return cases.some(c=>c.status===value&&JSON.parse(c.evidence_json||'[]').includes(e.event_id));
     return String(e[key]??'')===String(value);
   }));
 }
@@ -56,7 +59,7 @@ window.labWorkspaceLocalAPI=async function(path,opts={},data){
   const [endpoint,query]=path.split('?'),p=opts.body?JSON.parse(opts.body):{},params=new URLSearchParams(query||'');
   const events=data.events||[],cases=data.cases||[],rules=data.rules||[],synthetic=data.synthetic===true;
   const filters=p.filters||Object.fromEntries([...params].filter(([k])=>!['offset','limit'].includes(k)));
-  const rows=filterLocal(events,filters),count=key=>Object.fromEntries(Object.entries(rows.reduce((out,e)=>{const value=e[key]??'unknown';out[value]=(out[value]||0)+1;return out;},{})));
+  const rows=filterLocal(events,filters,cases),count=key=>Object.fromEntries(Object.entries(rows.reduce((out,e)=>{const value=e[key]??'unknown';out[value]=(out[value]||0)+1;return out;},{})));
   const summaries=()=>({events:events.length,alerts:cases.length,batches:events.length?1:0,cases:Object.fromEntries(['new','investigating','resolved','false_positive'].map(s=>[s,cases.filter(c=>c.status===s).length])),sources:events.reduce((a,e)=>(a[e.source]=(a[e.source]||0)+1,a),{}),recent:events.length?[{created_at:data.created_at||new Date().toISOString(),risk:data.risk||'unknown',event_count:events.length,alert_count:cases.length}]:[]});
   const readonly=new Set(['workspace/query','workspace/analytics','workspace/copilot','workspace/rules/test']);
   if(opts.method&&opts.method!=='GET'&&!readonly.has(endpoint))throw new Error('Bu işlem özel SOC bağlantısı gerektirir. Sekme analizi sunucuya kaydedilmez.');
@@ -65,7 +68,13 @@ window.labWorkspaceLocalAPI=async function(path,opts={},data){
   if(endpoint==='watchlist'||endpoint==='audit')return {items:[]};
   if(endpoint==='events'||endpoint==='workspace/query'){
     const offset=Number(p.offset||params.get('offset')||0),limit=Number(p.limit||params.get('limit')||100);
-    return {items:rows.slice(offset,offset+limit),total:rows.length,offset,limit,has_more:offset+limit<rows.length};
+    const ordered=endpoint==='workspace/query'?[...rows].sort((a,b)=>{
+      const first=Date.parse(a.timestamp),second=Date.parse(b.timestamp),direction=p.order==='asc'?1:-1;
+      if(!Number.isFinite(first))return Number.isFinite(second)?-direction:0;
+      if(!Number.isFinite(second))return direction;
+      return (first-second)*direction;
+    }):rows;
+    return {items:ordered.slice(offset,offset+limit),total:rows.length,offset,limit,has_more:offset+limit<rows.length};
   }
   if(endpoint==='cases'||endpoint==='workspace/cases')return {items:cases.filter(c=>!params.get('status')||c.status===params.get('status'))};
   if(endpoint==='intelligence')return {total:events.length,missing_time:events.filter(e=>!e.timestamp).length,missing_ip:events.filter(e=>!e.ip).length,unparsed:events.filter(e=>e.source==='unknown').length,severities:cases.reduce((a,c)=>(a[c.severity]=(a[c.severity]||0)+1,a),{}),timeline:[],ips:[...new Set(events.map(e=>e.ip).filter(Boolean))].map(ip=>({ip,scope:'unknown',events:events.filter(e=>e.ip===ip).length,alerts:cases.filter(c=>c.ip===ip).length,reputation:'unknown'}))};
@@ -84,7 +93,7 @@ window.labWorkspaceLocalAPI=async function(path,opts={},data){
   if(endpoint==='workspace/copilot'){
     let selected=rows;
     const duration=(p.question||'').match(/(?:son|last)\s+(\d{1,3})\s*(dakika|minutes?|dk|saat|hours?|gün|days?)/i);
-    if(duration){const unit=duration[2].toLowerCase(),minutes=Number(duration[1])*(/^(saat|hour)/.test(unit)?60:/^(gün|day)/.test(unit)?1440:1);if(minutes>43200||minutes<1)throw new Error('Araştırma aralığı sınırı aşıldı.');filters.start=new Date(Date.now()-minutes*60000).toISOString();filters.end=new Date().toISOString();selected=filterLocal(events,filters);}
+    if(duration){const unit=duration[2].toLowerCase(),minutes=Number(duration[1])*(/^(saat|hour)/.test(unit)?60:/^(gün|day)/.test(unit)?1440:1);if(minutes>43200||minutes<1)throw new Error('Araştırma aralığı sınırı aşıldı.');filters.start=new Date(Date.now()-minutes*60000).toISOString();filters.end=new Date().toISOString();selected=filterLocal(events,filters,cases);}
     if(p.context?.case_id){const c=cases.find(c=>String(c.id)===String(p.context.case_id));const ids=new Set(JSON.parse(c?.evidence_json||'[]'));selected=selected.filter(e=>ids.has(e.event_id));}
     if(/başarısız|failed|failure|brute/i.test(p.question))selected=selected.filter(e=>e.outcome==='failure');
     const ip=(p.question||'').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);if(ip)selected=selected.filter(e=>e.ip===ip[0]);
@@ -115,7 +124,7 @@ window.initV7Workspace=function({root,$,api,element:el,message,openSection,explo
     <div class="v7-toolbar"><label>Veri kaynağı<select id="v7ChartSource"><option value="soc">SOC kayıtları</option><option value="loki">Bağlı Grafana / Loki</option></select></label><label>Zaman<select id="v7TimeRange">${selectOptions([['context','Ortak araştırma aralığı'],['15','Son 15 dakika'],['60','Son 1 saat'],['1440','Son 24 saat']])}</select></label><button id="v7RunCharts" class="button primary">Grafikleri güncelle</button><button id="v7ImportLoki" class="button ghost" disabled>Sonucu SOC’a al</button></div>
     <label class="v7-logql">LogQL <input id="v7LogQL" value='{job=~"security|linux-auth"}' maxlength="2000"></label><p id="v7ChartScope" class="v7-status" role="status">Özel bağlantı, örnek görünüm veya sekme analizi ile başlayın.</p><div id="v7ChartMetrics" class="metrics"></div><div class="v7-two"><article class="v7-card"><h3>Olay zaman çizelgesi</h3><div id="v7ChartTimeline"></div></article><article class="v7-card"><h3>Kaynak ve seviye dağılımı</h3><div id="v7ChartSources"></div></article></div><div id="v7ChartLogs" class="v7-records"></div>`);
   section('copilot','READ-ONLY / EVIDENCE BOUND','Security Investigation Copilot','Soruyu ortak filtrelerle araştırır; model kapalıyken doğrulanabilir sorgu özeti çalışır.',`
-    <div class="v7-question-presets"><button class="smallbutton" data-question="En çok başarısız giriş hangi IP adresinden geldi?">Başarısız girişler</button><button class="smallbutton" data-question="Seçili host ve IP için hangi kayıtlar var?">Seçili varlık</button><button class="smallbutton" data-question="Bu araştırmada hangi veri eksik?">Kanıt kapsamı</button></div><form id="v7CopilotForm"><label for="v7Question">Araştırma sorusu</label><textarea id="v7Question" rows="3" maxlength="2000" placeholder="Son 30 dakikada en çok başarısız giriş hangi IP'den geldi?"></textarea><div class="v7-toolbar"><label>Kan?t kayna??<select id="v7CopilotSource"><option value="soc">SOC / sekme kay?tlar?</option><option value="loki">Ba?l? Loki</option></select></label><label class="v7-check"><input id="v7UseModel" type="checkbox">Yapılandırılmış yerel modelden ek yorum iste</label><button class="button primary" id="v7Ask">Kanıtlarda araştır</button></div></form><div id="v7CopilotResult" class="v7-answer" role="status"></div>`);
+    <div class="v7-question-presets"><button class="smallbutton" data-question="En çok başarısız giriş hangi IP adresinden geldi?">Başarısız girişler</button><button class="smallbutton" data-question="Seçili host ve IP için hangi kayıtlar var?">Seçili varlık</button><button class="smallbutton" data-question="Bu araştırmada hangi veri eksik?">Kanıt kapsamı</button></div><form id="v7CopilotForm"><label for="v7Question">Araştırma sorusu</label><textarea id="v7Question" rows="3" maxlength="2000" placeholder="Son 30 dakikada en çok başarısız giriş hangi IP'den geldi?"></textarea><div class="v7-toolbar"><label>Kanıt kaynağı<select id="v7CopilotSource"><option value="soc">SOC / sekme kayıtları</option><option value="loki">Bağlı Loki</option></select></label><label class="v7-check"><input id="v7UseModel" type="checkbox">Yapılandırılmış yerel modelden ek yorum iste</label><button class="button primary" id="v7Ask">Kanıtlarda araştır</button></div></form><div id="v7CopilotResult" class="v7-answer" role="status"></div>`);
   section('investigations','RESEARCH / CONTEXT','Araştırmalar ve kayıtlı sorgular','IP, host, kullanıcı, zaman ve seçili kanıt aynı araştırmada korunur.',`
     <div class="v7-two"><form id="v7InvestigationForm" class="v7-card"><label>Başlık<input id="v7InvestigationTitle" maxlength="120" required></label><label>Analist notu<textarea id="v7InvestigationNotes" maxlength="8000" rows="5"></textarea></label><button id="v7SaveInvestigation" class="button primary">Araştırmayı kaydet</button><button id="v7ExportInvestigation" type="button" class="button ghost">Bu araştırmayı JSON indir</button></form><div class="v7-card"><h3>Kayıtlı araştırmalar</h3><button id="v7ReloadInvestigations" class="smallbutton">Yenile</button><div id="v7InvestigationList"></div></div></div><div class="v7-toolbar"><label>Sorgu adı<input id="v7QueryName" maxlength="120"></label><button id="v7SaveQuery" class="button ghost">Filtreleri sorgu olarak kaydet</button></div><div id="v7SavedQueries" class="v7-records"></div><details><summary>Sorgu geçmişim</summary><div id="v7QueryHistory"></div></details>`);
   section('detection-studio','DETECTION ENGINEERING','Detection Studio','Yerleşik kuralları inceleyin, sınırlı ve denetlenebilir JSON kuralları sürümleyin.',`

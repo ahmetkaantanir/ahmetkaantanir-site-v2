@@ -37,7 +37,12 @@ try {
     await new Promise(resolve => setTimeout(resolve, 5000));
   }
   assert.equal(found, true, "Atlas and hunting release has not reached the live site");
+  await expect(page.locator('#v7Mode')).toBeVisible({timeout:15000});
+  await expect(page.locator('.navitem[href="#grafana-view"]')).toHaveCount(1);
+  await expect(page.locator('.navitem[href="#copilot"]')).toHaveCount(1);
   await page.locator("#demoWorkspace").click();
+  await expect(page.locator('#v7Mode')).toHaveText('SENTETİK DEMO');
+  await expect(page.locator('#v7OverviewTimeline svg')).toHaveCount(1);
   await expect(page.locator('#sEvents')).toHaveText('18', { timeout: 15000 });
   assert.equal(await page.locator("#eventsBody tr").count(), 18, "Synthetic demo event rows");
   assert.equal(await page.locator("#cases .case").count(), 2, "Synthetic demo case cards");

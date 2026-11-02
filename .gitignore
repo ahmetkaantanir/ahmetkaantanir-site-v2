@@ -42,3 +42,4 @@ Thumbs.db
 deploy/logs/
 deploy/feeds/
 deploy/runtime/
+backups/

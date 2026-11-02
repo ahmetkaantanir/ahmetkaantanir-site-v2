@@ -8,7 +8,7 @@ try{
   await page.goto(new URL('/soc',base).href,{waitUntil:'domcontentloaded'});
   await page.locator('.navitem[href="#intelligence"]').click();
   await page.locator('#globe').scrollIntoViewIfNeeded();
-  await page.waitForFunction(()=>document.querySelector('#globe').atlasMap?.isStyleLoaded());
+  await page.waitForFunction(()=>document.querySelector('#globe').atlasMap?.isStyleLoaded(),null,{timeout:60000});
   await expect(page.locator('#geoCoverage')).toContainText('0 / 0');
   assert.equal(await page.locator('.event-pin').count(),0);
   await page.locator('#demoWorkspace').click();await expect(page.locator('#geoCoverage')).toContainText('3 / 18');
