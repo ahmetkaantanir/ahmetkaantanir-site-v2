@@ -204,7 +204,7 @@ def create_app() -> Flask:
             if isinstance(data, dict) and data.get('analysis_id') is not None:
                 return _json_error('Saved analyses are only available through the authenticated SOC workspace', 403)
 
-        if _rate_limited(_bucket_key()):
+        if request.path.startswith('/api/') and _rate_limited(_bucket_key()):
             return _json_error('Rate limit exceeded', 429)
 
     return app
